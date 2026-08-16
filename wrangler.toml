@@ -1,5 +1,11 @@
 name = "mehanik"
+main = "worker.js"
 compatibility_date = "2026-08-16"
 
 [assets]
 directory = "."
+binding = "ASSETS"
+
+# Після створення D1 у Cloudflare прив'яжи його в Bindings
+# з ім'ям DB. ID бази сюди додавати не обов'язково, якщо binding
+# налаштований через Cloudflare Dashboard.
