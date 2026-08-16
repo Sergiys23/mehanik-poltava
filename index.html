@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Механік — автосервіс у Полтаві. ТО, діагностика, ремонт, шиномонтаж та запчастини.">
+  <title>Механік | Автосервіс у Полтаві</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0d10; --panel:#12161b; --panel2:#171c22; --text:#f3f5f7;
+      --muted:#9da6b0; --accent:#ff6a00; --line:#252c34; --max:1180px;
+    }
+    *{box-sizing:border-box} html{scroll-behavior:smooth}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;line-height:1.6}
+    a{color:inherit;text-decoration:none}.wrap{max-width:var(--max);margin:auto;padding:0 22px}
+    header{position:sticky;top:0;z-index:10;background:rgba(11,13,16,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+    .nav{height:72px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+    .logo{font-family:Oswald,sans-serif;font-size:27px;font-weight:700;letter-spacing:.04em}
+    .logo span{color:var(--accent)}
+    nav{display:flex;gap:24px;color:#cbd1d7;font-size:14px}
+    nav a:hover{color:#fff}
+    .phone{font-weight:700;white-space:nowrap}.phone b{color:var(--accent)}
+    .hero{min-height:650px;display:grid;place-items:center;position:relative;overflow:hidden}
+    .hero:before{content:"";position:absolute;inset:0;background:
+      radial-gradient(circle at 75% 35%,rgba(255,106,0,.18),transparent 28%),
+      linear-gradient(110deg,rgba(11,13,16,.98) 15%,rgba(11,13,16,.72) 58%,rgba(11,13,16,.92));
+    }
+    .hero:after{content:"";position:absolute;inset:auto -10% -35% -10%;height:45%;background:var(--accent);opacity:.06;transform:skewY(-6deg)}
+    .hero-inner{position:relative;z-index:1;width:100%;padding:95px 22px 80px;max-width:var(--max)}
+    .eyebrow{color:var(--accent);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:13px}
+    h1,h2,h3{margin:0;font-family:Oswald,Inter,sans-serif;text-transform:uppercase;line-height:1.05}
+    h1{font-size:clamp(54px,8vw,104px);max-width:820px;margin:16px 0 22px}
+    .hero p{max-width:620px;color:#c2c8cf;font-size:19px}
+    .buttons{display:flex;gap:12px;flex-wrap:wrap;margin-top:32px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:14px 22px;border-radius:7px;font-weight:800;border:1px solid var(--line)}
+    .btn.primary{background:var(--accent);color:#111;border-color:var(--accent)}
+    .btn.secondary{background:#151a20}
+    section{padding:90px 0;border-bottom:1px solid var(--line)}
+    .section-head{display:flex;align-items:end;justify-content:space-between;gap:30px;margin-bottom:38px}
+    h2{font-size:48px}.lead{color:var(--muted);max-width:620px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px;min-height:190px}
+    .num{color:var(--accent);font-family:Oswald;font-size:24px}.card h3{font-size:26px;margin:14px 0 8px}.card p{color:var(--muted);margin:0}
+    .about{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+    .facts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:28px}
+    .fact{padding:20px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+    .fact strong{display:block;font-size:25px}.fact span{color:var(--muted);font-size:13px}
+    .cta{background:linear-gradient(135deg,#161b20,#101317);border:1px solid var(--line);border-radius:16px;padding:45px}
+    .contact{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .contact-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:30px}
+    .contact-card a{font-size:22px;font-weight:800}.small{color:var(--muted);font-size:14px;margin-top:6px}
+    iframe{width:100%;height:360px;border:0;border-radius:12px;filter:grayscale(1) contrast(1.05)}
+    footer{padding:35px 0;color:var(--muted);font-size:13px}
+    .mobile-menu{display:none}
+    @media(max-width:820px){
+      nav{display:none}.phone{font-size:14px}.mobile-menu{display:block;background:none;color:white;border:0;font-size:24px}
+      .grid,.about,.contact{grid-template-columns:1fr}.facts{grid-template-columns:1fr 1fr}
+      .hero{min-height:590px}.section-head{display:block}h2{font-size:40px;margin-bottom:12px}
+    }
+    @media(max-width:520px){.facts{grid-template-columns:1fr}.hero-inner{padding-top:65px}h1{font-size:56px}.cta{padding:28px}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#">МЕХАНІК<span>.</span></a>
+    <nav>
+      <a href="#services">Послуги</a><a href="#about">Про сервіс</a><a href="#contacts">Контакти</a>
+    </nav>
+    <a class="phone" href="tel:+380505944597"><b>+38 050</b> 594 45 97</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="eyebrow">Автосервіс · Полтава</div>
+      <h1>Автомобіль має їхати.<br><span style="color:var(--accent)">Ми подбаємо.</span></h1>
+      <p>Технічне обслуговування, діагностика, ремонт, шиномонтаж та заміна комплектуючих. Практичний підхід без зайвого театру.</p>
+      <div class="buttons">
+        <a class="btn primary" href="tel:+380505944597">Зателефонувати</a>
+        <a class="btn secondary" target="_blank" rel="noopener" href="https://maps.app.goo.gl/832ZbUFvLDtDXgfX9">Прокласти маршрут</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="services">
+    <div class="wrap">
+      <div class="section-head">
+        <div><div class="eyebrow">Що робимо</div><h2>Послуги</h2></div>
+        <p class="lead">Універсальний сервіс для легкових автомобілів та комерційного транспорту до 4 тонн.</p>
+      </div>
+      <div class="grid">
+        <article class="card"><div class="num">01</div><h3>Діагностика</h3><p>Комп'ютерна діагностика та пошук несправностей перед ремонтом.</p></article>
+        <article class="card"><div class="num">02</div><h3>ТО та ремонт</h3><p>Планове техобслуговування, заміна деталей і агрегатів, післягарантійний ремонт.</p></article>
+        <article class="card"><div class="num">03</div><h3>Ходова</h3><p>Перевірка та ремонт елементів підвіски, рульового керування й гальмівної системи.</p></article>
+        <article class="card"><div class="num">04</div><h3>Шиномонтаж</h3><p>Сезонна заміна коліс та базові шиномонтажні роботи.</p></article>
+        <article class="card"><div class="num">05</div><h3>Рідини та мастила</h3><p>Мастильно-заправні роботи та заміна експлуатаційних рідин.</p></article>
+        <article class="card"><div class="num">06</div><h3>Запчастини</h3><p>Заміна комплектуючих із підбором деталей під автомобіль.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="wrap about">
+      <div>
+        <div class="eyebrow">Про сервіс</div>
+        <h2 style="margin:12px 0 22px">Місце, де ремонтують автомобілі, а не рахують легенди.</h2>
+        <p class="lead">«Механік» працює в Полтаві на вул. Решетилівській, 51а. Основний фокус — технічне обслуговування, діагностика та дрібний ремонт із заміною деталей і агрегатів.</p>
+        <div class="facts">
+          <div class="fact"><strong>до 4 т</strong><span>транспорт, який обслуговуємо</span></div>
+          <div class="fact"><strong>BOSCH</strong><span>та Delphi комплектуючі</span></div>
+          <div class="fact"><strong>09:00–18:00</strong><span>Пн–Пт</span></div>
+          <div class="fact"><strong>09:00–15:00</strong><span>Субота</span></div>
+        </div>
+      </div>
+      <div class="cta">
+        <div class="eyebrow">Запис на сервіс</div>
+        <h2 style="margin:12px 0 18px">Не відкладайте ремонт до моменту, коли автомобіль сам подасть заяву на звільнення.</h2>
+        <p class="lead">Зателефонуйте — узгодимо проблему та час приїзду.</p>
+        <div class="buttons"><a class="btn primary" href="tel:+380505944597">+38 050 594 45 97</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contacts">
+    <div class="wrap">
+      <div class="section-head"><div><div class="eyebrow">Ми тут</div><h2>Контакти</h2></div></div>
+      <div class="contact">
+        <div class="contact-card">
+          <div class="eyebrow">Адреса</div>
+          <a target="_blank" rel="noopener" href="https://maps.app.goo.gl/832ZbUFvLDtDXgfX9">Полтава, вул. Решетилівська, 51а</a>
+          <div class="small">Відкрити маршрут у Google Maps</div>
+          <div style="height:22px"></div>
+          <div class="eyebrow">Телефон</div>
+          <a href="tel:+380505944597">+38 050 594 45 97</a>
+        </div>
+        <div class="contact-card">
+          <div class="eyebrow">Графік</div>
+          <p style="font-size:18px;margin:8px 0">Пн–Пт: 09:00–18:00<br>Сб: 09:00–15:00<br>Нд: вихідний</p>
+          <div class="small">Актуальність графіка краще підтвердити телефоном.</div>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <iframe loading="lazy" src="https://www.google.com/maps?q=вулиця+Решетилівська,+51а,+Полтава&output=embed" title="Механік на карті"></iframe>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">© <span id="year"></span> Механік · Автосервіс, Полтава</div>
+</footer>
+<script>document.getElementById('year').textContent=new Date().getFullYear();</script>
+</body>
+</html>
