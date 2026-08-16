@@ -1,2 +1,7 @@
-# mehanik-poltava
-mehanik-poltava
+# Механік Полтава
+
+Статичний сайт автосервісу «Механік» у Полтаві.
+
+- Головний механік: Богдан
+- Instagram: https://www.instagram.com/mechanik.plt/
+- Адреса: вул. Решетилівська, 53, Полтава
