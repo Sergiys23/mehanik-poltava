@@ -357,30 +357,4 @@ export default {
           const b=await request.json();
           if(!/^\d{4}-\d{2}-\d{2}$/.test(b.date||"")||!slots().includes(b.time)) return json({error:"Invalid block"},400);
           try{await env.DB.prepare(`INSERT INTO blocked_slots(date,time,reason) VALUES(?,?,?)`).bind(b.date,b.time,(b.reason||"").trim()).run()}
-          catch(e){if(String(e.message||"").toLowerCase().includes("unique"))return json({error:"Already blocked"},409);throw e}
-          await audit(env.DB,role,"block_slot",`${b.date} ${b.time}`,b.reason||"");
-          return json({ok:true},201);
-        }
-        if(u.pathname==="/api/admin/blocks" && request.method==="GET"){
-          const r=await env.DB.prepare(`SELECT * FROM blocked_slots ORDER BY date,time`).all(); return json(r.results||[]);
-        }
-        if(u.pathname==="/api/admin/blocks" && request.method==="DELETE"){
-          const id=Number(u.searchParams.get("id")); if(!id)return json({error:"Bad id"},400);
-          await env.DB.prepare(`DELETE FROM blocked_slots WHERE id=?`).bind(id).run(); return json({ok:true});
-        }
-
-        return json({error:"Not found"},404);
-      }
-
-      if(!u.pathname.startsWith("/api/")){
-        if(u.pathname==="/admin"||u.pathname==="/admin.html")
-          return env.ASSETS.fetch(new Request(new URL("/admin.html",request.url),request));
-        return env.ASSETS.fetch(request);
-      }
-      return json({error:"Not found"},404);
-    }catch(e){
-      console.error(e);
-      return json({error:e.message||"Server error"},500);
-    }
-  }
-};
+          catch(e){if(String(e.message||"").toLowerCa
