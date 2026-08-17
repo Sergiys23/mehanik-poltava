@@ -3,125 +3,1189 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Механік Полтава — ремонт авто, шиномонтаж, розвал-сходження та комп'ютерна діагностика.">
+
+  <meta
+    name="description"
+    content="Механік Полтава — ремонт авто, шиномонтаж, розвал-сходження та комп'ютерна діагностика."
+  >
+
   <title>Механік Полтава — СТО</title>
+
   <link rel="stylesheet" href="/style.css">
+
+  <style>
+    /* ================================
+       ADMIN LOGIN
+    ================================= */
+
+    .admin-login-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .admin-login-modal.hidden {
+      display: none;
+    }
+
+    .admin-login-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, .78);
+      backdrop-filter: blur(6px);
+    }
+
+    .admin-login-box {
+      position: relative;
+      z-index: 2;
+      width: min(420px, 100%);
+      box-sizing: border-box;
+      padding: 32px;
+      background: #151a20;
+      color: #fff;
+      border: 1px solid #303841;
+      border-radius: 18px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, .55);
+    }
+
+    .admin-login-icon {
+      width: 54px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      background: #242b33;
+      border-radius: 14px;
+      font-size: 25px;
+    }
+
+    .admin-login-box h2 {
+      margin: 5px 0 8px;
+    }
+
+    .admin-login-subtitle {
+      margin: 0 0 24px;
+      color: #9da6af;
+      line-height: 1.5;
+    }
+
+    .admin-login-box label {
+      display: block;
+      margin-bottom: 15px;
+      color: #dce1e5;
+      font-weight: 700;
+    }
+
+    .admin-login-box input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 7px;
+      padding: 13px 14px;
+      background: #0d1014;
+      color: #fff;
+      border: 1px solid #303841;
+      border-radius: 9px;
+      outline: none;
+      font-size: 16px;
+    }
+
+    .admin-login-box input:focus {
+      border-color: #ff6a00;
+    }
+
+    .admin-login-close {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      width: 38px;
+      height: 38px;
+      border: 0;
+      background: transparent;
+      color: #9da6af;
+      font-size: 28px;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+
+    .admin-login-close:hover {
+      background: #242b33;
+      color: #fff;
+    }
+
+    .admin-login-message {
+      min-height: 22px;
+      margin-top: 12px;
+      color: #ffaaa0;
+      font-size: 14px;
+    }
+
+    .admin-link {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .admin-login-box .btn:disabled {
+      opacity: .6;
+      cursor: wait;
+    }
+
+    /* ================================
+       WORKS
+    ================================= */
+
+    .work-image {
+      width: 100%;
+      height: 240px;
+      overflow: hidden;
+      background: #0d1014;
+      border-radius: 10px 10px 0 0;
+    }
+
+    .work-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    @media (max-width: 600px) {
+      .admin-login-box {
+        padding: 25px 20px;
+      }
+
+      .work-image {
+        height: 210px;
+      }
+    }
+  </style>
 </head>
+
 <body>
+
 <header class="header">
-  <a class="logo" href="/">МЕХАНІК <span>ПОЛТАВА</span></a>
+
+  <a class="logo" href="/">
+    МЕХАНІК <span>ПОЛТАВА</span>
+  </a>
+
   <nav>
     <a href="#services">Послуги</a>
     <a href="#works">Роботи</a>
     <a href="#reviews">Відгуки</a>
     <a href="#contacts">Контакти</a>
   </nav>
-  <div class="header-actions"><a class="admin-link" href="/admin.html">🔐 Адмін</a><a class="header-phone" data-phone-link href="#">📞 <span data-phone></span></a></div>
+
+  <div class="header-actions">
+
+    <!-- ВХІД АДМІНІСТРАТОРА -->
+    <button
+      class="admin-link"
+      id="adminLoginOpen"
+      type="button"
+    >
+      🔐 Вхід
+    </button>
+
+    <a
+      class="header-phone"
+      data-phone-link
+      href="#"
+    >
+      📞 <span data-phone></span>
+    </a>
+
+  </div>
+
 </header>
 
+
 <main>
+
+<!-- ================================
+     HERO
+================================= -->
+
 <section class="hero">
+
   <div class="hero-content">
-    <p class="eyebrow">СТО • ПОЛТАВА</p>
-    <h1>Ремонт авто<br><span>без зайвих слів.</span></h1>
-    <p class="lead">Діагностика, ремонт двигуна та ходової, шиномонтаж і розвал-сходження.</p>
+
+    <p class="eyebrow">
+      СТО • ПОЛТАВА
+    </p>
+
+    <h1>
+      Ремонт авто<br>
+      <span>без зайвих слів.</span>
+    </h1>
+
+    <p class="lead">
+      Шиномонтаж, ремонт двигуна та ходової,
+      розвал-сходження та комп'ютерна діагностика.
+    </p>
+
     <div class="actions">
-      <a class="btn primary" href="#booking">📅 Записатися</a>
-      <a class="btn secondary" data-phone-link href="#">📞 Подзвонити</a>
+
+      <a
+        class="btn primary"
+        href="#booking"
+      >
+        📅 Записатися
+      </a>
+
+      <a
+        class="btn secondary"
+        data-phone-link
+        href="#"
+      >
+        📞 Подзвонити
+      </a>
+
     </div>
+
     <div class="quick-info">
-      <span>📍 <b data-address></b></span>
-      <span>🕐 Пн–Сб: 09:00–18:00</span>
+
+      <span>
+        📍 <b data-address></b>
+      </span>
+
+      <span>
+        🕐 Пн–Сб: 09:00–18:00
+      </span>
+
     </div>
+
   </div>
+
+
   <div class="hero-card">
-    <div class="hero-icon">🔧</div>
-    <strong>Запис на ремонт</strong>
-    <p>Оберіть послугу, дату та вільний час. Без пошуків у власному календарі.</p>
-    <a class="btn primary full" href="#booking">Обрати час →</a>
+
+    <div class="hero-icon">
+      🔧
+    </div>
+
+    <strong>
+      Запис на ремонт
+    </strong>
+
+    <p>
+      Оберіть послугу, дату та вільний час.
+      Без дзвінків і пошуків у календарі.
+    </p>
+
+    <a
+      class="btn primary full"
+      href="#booking"
+    >
+      Обрати час →
+    </a>
+
   </div>
+
 </section>
 
-<section id="services" class="section">
-  <div class="section-head"><p class="eyebrow">НАШІ ПОСЛУГИ</p><h2>Все необхідне для вашого авто</h2></div>
-  <div class="cards four">
-    <article class="card"><div class="card-icon">🛞</div><h3>Шиномонтаж</h3><p>Заміна, балансування та ремонт коліс.</p></article>
-    <article class="card"><div class="card-icon">🔧</div><h3>Ремонт двигуна та ходової</h3><p>Діагностика й ремонт основних механічних вузлів автомобіля.</p></article>
-    <article class="card"><div class="card-icon">⚙️</div><h3>Розвал-сходження</h3><p>Перевірка та регулювання кутів установки коліс.</p></article>
-    <article class="card"><div class="card-icon">💻</div><h3>Комп'ютерна діагностика</h3><p>Пошук електронних помилок і діагностика систем авто.</p></article>
+
+<!-- ================================
+     SERVICES
+================================= -->
+
+<section
+  id="services"
+  class="section"
+>
+
+  <div class="section-head">
+
+    <p class="eyebrow">
+      НАШІ ПОСЛУГИ
+    </p>
+
+    <h2>
+      Все необхідне для вашого авто
+    </h2>
+
   </div>
+
+
+  <div class="cards four">
+
+    <article class="card">
+
+      <div class="card-icon">
+        🛞
+      </div>
+
+      <h3>
+        Шиномонтаж
+      </h3>
+
+      <p>
+        Заміна, балансування та ремонт коліс.
+      </p>
+
+    </article>
+
+
+    <article class="card">
+
+      <div class="card-icon">
+        🔧
+      </div>
+
+      <h3>
+        Ремонт двигуна та ходової
+      </h3>
+
+      <p>
+        Діагностика й ремонт основних
+        механічних вузлів автомобіля.
+      </p>
+
+    </article>
+
+
+    <article class="card">
+
+      <div class="card-icon">
+        ⚙️
+      </div>
+
+      <h3>
+        Розвал-сходження
+      </h3>
+
+      <p>
+        Перевірка та регулювання
+        кутів установки коліс.
+      </p>
+
+    </article>
+
+
+    <article class="card">
+
+      <div class="card-icon">
+        💻
+      </div>
+
+      <h3>
+        Комп'ютерна діагностика
+      </h3>
+
+      <p>
+        Пошук електронних помилок
+        і діагностика систем авто.
+      </p>
+
+    </article>
+
+  </div>
+
 </section>
+
+
+<!-- ================================
+     WHY US
+================================= -->
 
 <section class="why section">
-  <div><p class="eyebrow">ЧОМУ МИ</p><h2>Спочатку знаходимо проблему. Потім ремонтуємо.</h2></div>
+
+  <div>
+
+    <p class="eyebrow">
+      ЧОМУ МИ
+    </p>
+
+    <h2>
+      Спочатку знаходимо проблему.
+      Потім ремонтуємо.
+    </h2>
+
+  </div>
+
+
   <div class="features">
-    <div><b>🔍 Діагностика</b><span>Не міняємо деталі навмання.</span></div>
-    <div><b>💬 Погодження</b><span>Обсяг робіт узгоджується з клієнтом.</span></div>
-    <div><b>📅 Запис</b><span>Ви бачите вільний час ще до приїзду.</span></div>
-    <div><b>📞 Прямий зв'язок</b><span>Без складних кол-центрів.</span></div>
+
+    <div>
+      <b>🔍 Діагностика</b>
+      <span>
+        Не міняємо деталі навмання.
+      </span>
+    </div>
+
+    <div>
+      <b>💬 Погодження</b>
+      <span>
+        Обсяг робіт узгоджується з клієнтом.
+      </span>
+    </div>
+
+    <div>
+      <b>📅 Запис</b>
+      <span>
+        Ви бачите вільний час
+        ще до приїзду.
+      </span>
+    </div>
+
+    <div>
+      <b>📞 Прямий зв'язок</b>
+      <span>
+        Без складних кол-центрів.
+      </span>
+    </div>
+
   </div>
+
 </section>
 
-<section id="booking" class="section booking-section">
-  <div class="section-head"><p class="eyebrow">ОНЛАЙН-ЗАПИС</p><h2>Оберіть зручний час</h2><p>Зелений час доступний. Зайняті слоти клієнтам не показуємо.</p></div>
+
+<!-- ================================
+     BOOKING
+================================= -->
+
+<section
+  id="booking"
+  class="section booking-section"
+>
+
+  <div class="section-head">
+
+    <p class="eyebrow">
+      ОНЛАЙН-ЗАПИС
+    </p>
+
+    <h2>
+      Оберіть зручний час
+    </h2>
+
+    <p>
+      Вільні години доступні для запису.
+      Зайняті слоти недоступні.
+    </p>
+
+  </div>
+
+
   <div class="booking-grid">
+
     <div class="calendar-panel">
-      <div class="calendar-top"><button id="prevMonth">‹</button><h3 id="monthTitle"></h3><button id="nextMonth">›</button></div>
-      <div id="calendar" class="calendar"></div>
-      <div class="legend"><span>🟢 Вільно</span><span>⚫ Зайнято</span><span>🔴 Вихідний</span></div>
+
+      <div class="calendar-top">
+
+        <button
+          id="prevMonth"
+          type="button"
+        >
+          ‹
+        </button>
+
+        <h3 id="monthTitle"></h3>
+
+        <button
+          id="nextMonth"
+          type="button"
+        >
+          ›
+        </button>
+
+      </div>
+
+
+      <div
+        id="calendar"
+        class="calendar"
+      ></div>
+
+
+      <div class="legend">
+
+        <span>
+          🟢 Вільно
+        </span>
+
+        <span>
+          ⚫ Зайнято
+        </span>
+
+        <span>
+          🔴 Вихідний
+        </span>
+
+      </div>
+
     </div>
+
+
     <div class="slots-panel">
-      <h3 id="selectedDateTitle">Оберіть дату</h3>
-      <div id="slots" class="slots"><p class="muted">Спочатку оберіть дату в календарі.</p></div>
+
+      <h3 id="selectedDateTitle">
+        Оберіть дату
+      </h3>
+
+      <div
+        id="slots"
+        class="slots"
+      >
+
+        <p class="muted">
+          Спочатку оберіть дату в календарі.
+        </p>
+
+      </div>
+
     </div>
+
   </div>
-  <form id="bookingForm" class="form hidden">
-    <h3>Дані для запису</h3>
-    <input name="name" placeholder="Ваше ім'я" required>
-    <input name="phone" placeholder="+380..." required>
-    <input name="car" placeholder="Автомобіль" required>
-    <select name="service" required>
-      <option value="">Оберіть послугу</option>
-      <option>Шиномонтаж</option>
-      <option>Ремонт двигуна та ходової</option>
-      <option>Розвал-сходження</option>
-      <option>Комп'ютерна діагностика</option>
+
+
+  <form
+    id="bookingForm"
+    class="form hidden"
+  >
+
+    <h3>
+      Дані для запису
+    </h3>
+
+
+    <input
+      name="name"
+      placeholder="Ваше ім'я"
+      autocomplete="name"
+      required
+    >
+
+
+    <input
+      name="phone"
+      type="tel"
+      placeholder="+380..."
+      autocomplete="tel"
+      required
+    >
+
+
+    <input
+      name="car"
+      placeholder="Автомобіль"
+      required
+    >
+
+
+    <select
+      name="service"
+      required
+    >
+
+      <option value="">
+        Оберіть послугу
+      </option>
+
+      <option>
+        Шиномонтаж
+      </option>
+
+      <option>
+        Ремонт двигуна та ходової
+      </option>
+
+      <option>
+        Розвал-сходження
+      </option>
+
+      <option>
+        Комп'ютерна діагностика
+      </option>
+
     </select>
-    <textarea name="note" placeholder="Додатково: опишіть проблему"></textarea>
-    <input type="hidden" name="date" id="bookingDate">
-    <input type="hidden" name="time" id="bookingTime">
-    <div id="bookingSummary" class="summary"></div>
-    <button class="btn primary" type="submit">Підтвердити запис</button>
-    <p id="bookingMessage" class="message"></p>
+
+
+    <textarea
+      name="note"
+      placeholder="Додатково: опишіть проблему"
+    ></textarea>
+
+
+    <input
+      type="hidden"
+      name="date"
+      id="bookingDate"
+    >
+
+
+    <input
+      type="hidden"
+      name="time"
+      id="bookingTime"
+    >
+
+
+    <div
+      id="bookingSummary"
+      class="summary"
+    ></div>
+
+
+    <button
+      class="btn primary"
+      type="submit"
+    >
+      Підтвердити запис
+    </button>
+
+
+    <p
+      id="bookingMessage"
+      class="message"
+    ></p>
+
   </form>
+
 </section>
 
-<section id="works" class="section">
-  <div class="section-head"><p class="eyebrow">НАШІ РОБОТИ</p><h2>Реальні автомобілі. Реальні роботи.</h2></div>
-  <div id="worksGrid" class="cards three"></div>
+
+<!-- ================================
+     WORKS
+================================= -->
+
+<section
+  id="works"
+  class="section"
+>
+
+  <div class="section-head">
+
+    <p class="eyebrow">
+      НАШІ РОБОТИ
+    </p>
+
+    <h2>
+      Реальні автомобілі. Реальні роботи.
+    </h2>
+
+  </div>
+
+
+  <div
+    id="worksGrid"
+    class="cards three"
+  ></div>
+
 </section>
 
-<section id="reviews" class="section">
-  <div class="section-head"><p class="eyebrow">ВІДГУКИ</p><h2>Що кажуть клієнти</h2></div>
-  <div id="reviewsGrid" class="cards three"></div>
-  <form id="reviewForm" class="form review-form">
-    <h3>Залишити відгук</h3>
-    <input name="name" placeholder="Ваше ім'я" required>
-    <select name="rating" required><option value="">Оцінка</option><option value="5">★★★★★ 5</option><option value="4">★★★★☆ 4</option><option value="3">★★★☆☆ 3</option><option value="2">★★☆☆☆ 2</option><option value="1">★☆☆☆☆ 1</option></select>
-    <textarea name="text" placeholder="Ваш відгук" required></textarea>
-    <button class="btn primary" type="submit">Надіслати відгук</button>
-    <p id="reviewMessage" class="message"></p>
+
+<!-- ================================
+     REVIEWS
+================================= -->
+
+<section
+  id="reviews"
+  class="section"
+>
+
+  <div class="section-head">
+
+    <p class="eyebrow">
+      ВІДГУКИ
+    </p>
+
+    <h2>
+      Що кажуть клієнти
+    </h2>
+
+  </div>
+
+
+  <div
+    id="reviewsGrid"
+    class="cards three"
+  ></div>
+
+
+  <form
+    id="reviewForm"
+    class="form review-form"
+  >
+
+    <h3>
+      Залишити відгук
+    </h3>
+
+
+    <input
+      name="name"
+      placeholder="Ваше ім'я"
+      required
+    >
+
+
+    <select
+      name="rating"
+      required
+    >
+
+      <option value="">
+        Оцінка
+      </option>
+
+      <option value="5">
+        ★★★★★ 5
+      </option>
+
+      <option value="4">
+        ★★★★☆ 4
+      </option>
+
+      <option value="3">
+        ★★★☆☆ 3
+      </option>
+
+      <option value="2">
+        ★★☆☆☆ 2
+      </option>
+
+      <option value="1">
+        ★☆☆☆☆ 1
+      </option>
+
+    </select>
+
+
+    <textarea
+      name="text"
+      placeholder="Ваш відгук"
+      required
+    ></textarea>
+
+
+    <button
+      class="btn primary"
+      type="submit"
+    >
+      Надіслати відгук
+    </button>
+
+
+    <p
+      id="reviewMessage"
+      class="message"
+    ></p>
+
   </form>
+
 </section>
 
-<section id="contacts" class="contacts section">
-  <div><p class="eyebrow">КОНТАКТИ</p><h2>Приїжджайте на діагностику</h2><p>📍 <span data-address></span></p><p>📞 <a data-phone-link href="#"><span data-phone></span></a></p><p>🕐 Пн–Сб: 09:00–18:00</p></div>
-  <div class="map"><iframe title="Карта" src="https://www.google.com/maps?q=Решетилівська+53,+Полтава&output=embed" loading="lazy"></iframe></div>
+
+<!-- ================================
+     CONTACTS
+================================= -->
+
+<section
+  id="contacts"
+  class="contacts section"
+>
+
+  <div>
+
+    <p class="eyebrow">
+      КОНТАКТИ
+    </p>
+
+    <h2>
+      Приїжджайте на діагностику
+    </h2>
+
+    <p>
+      📍 <span data-address></span>
+    </p>
+
+    <p>
+      📞
+      <a
+        data-phone-link
+        href="#"
+      >
+        <span data-phone></span>
+      </a>
+    </p>
+
+    <p>
+      🕐 Пн–Сб: 09:00–18:00
+    </p>
+
+  </div>
+
+
+  <div class="map">
+
+    <iframe
+      title="Карта"
+      src="https://www.google.com/maps?q=Решетилівська+53,+Полтава&output=embed"
+      loading="lazy"
+    ></iframe>
+
+  </div>
+
 </section>
+
 </main>
 
-<footer><span>© 2026 Механік Полтава</span><a href="/admin.html">🔐 Адмін</a></footer>
-<div class="mobile-bar"><a data-phone-link href="#">📞 Подзвонити</a><a href="#booking">📅 Записатися</a><a href="#contacts">📍 Маршрут</a></div>
-<script src="/config.js"></script><script src="/app.js"></script>
+
+<!-- ================================
+     FOOTER
+================================= -->
+
+<footer>
+
+  <span>
+    © 2026 Механік Полтава
+  </span>
+
+  <button
+    type="button"
+    class="admin-link"
+    id="adminLoginFooter"
+  >
+    🔐 Вхід адміністратора
+  </button>
+
+</footer>
+
+
+<div class="mobile-bar">
+
+  <a
+    data-phone-link
+    href="#"
+  >
+    📞 Подзвонити
+  </a>
+
+  <a href="#booking">
+    📅 Записатися
+  </a>
+
+  <a href="#contacts">
+    📍 Маршрут
+  </a>
+
+</div>
+
+
+<!-- ================================
+     ADMIN LOGIN MODAL
+================================= -->
+
+<div
+  id="adminLoginModal"
+  class="admin-login-modal hidden"
+>
+
+  <div
+    class="admin-login-overlay"
+    id="adminLoginOverlay"
+  ></div>
+
+
+  <div class="admin-login-box">
+
+    <button
+      type="button"
+      class="admin-login-close"
+      id="adminLoginClose"
+      aria-label="Закрити"
+    >
+      ×
+    </button>
+
+
+    <div class="admin-login-icon">
+      🔐
+    </div>
+
+
+    <p class="eyebrow">
+      МЕХАНІК ПОЛТАВА
+    </p>
+
+
+    <h2>
+      Вхід для адміністратора
+    </h2>
+
+
+    <p class="admin-login-subtitle">
+      Увійдіть для керування заявками та сайтом.
+    </p>
+
+
+    <form id="adminLoginForm">
+
+      <label>
+        Логін
+
+        <input
+          id="adminUsername"
+          name="username"
+          type="text"
+          autocomplete="username"
+          placeholder="Логін"
+          required
+        >
+
+      </label>
+
+
+      <label>
+        Пароль
+
+        <input
+          id="adminPassword"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Пароль"
+          required
+        >
+
+      </label>
+
+
+      <button
+        class="btn primary full"
+        type="submit"
+        id="adminLoginButton"
+      >
+        Увійти
+      </button>
+
+
+      <p
+        id="adminLoginMessage"
+        class="admin-login-message"
+        aria-live="polite"
+      ></p>
+
+    </form>
+
+  </div>
+
+</div>
+
+
+<script src="/config.js"></script>
+<script src="/app.js"></script>
+
+
+<script>
+/* ==========================================
+   ВХІД АДМІНІСТРАТОРА
+========================================== */
+
+(function () {
+
+  const modal = document.getElementById("adminLoginModal");
+  const openButton = document.getElementById("adminLoginOpen");
+  const footerButton = document.getElementById("adminLoginFooter");
+  const closeButton = document.getElementById("adminLoginClose");
+  const overlay = document.getElementById("adminLoginOverlay");
+
+  const form = document.getElementById("adminLoginForm");
+  const username = document.getElementById("adminUsername");
+  const password = document.getElementById("adminPassword");
+
+  const loginButton = document.getElementById("adminLoginButton");
+  const message = document.getElementById("adminLoginMessage");
+
+
+  function openModal() {
+
+    if (!modal) return;
+
+    modal.classList.remove("hidden");
+
+    setTimeout(function () {
+
+      if (username) {
+        username.focus();
+      }
+
+    }, 50);
+
+  }
+
+
+  function closeModal() {
+
+    if (!modal) return;
+
+    modal.classList.add("hidden");
+
+    if (message) {
+      message.textContent = "";
+    }
+
+  }
+
+
+  openButton?.addEventListener(
+    "click",
+    openModal
+  );
+
+
+  footerButton?.addEventListener(
+    "click",
+    openModal
+  );
+
+
+  closeButton?.addEventListener(
+    "click",
+    closeModal
+  );
+
+
+  overlay?.addEventListener(
+    "click",
+    closeModal
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    function (event) {
+
+      if (event.key === "Escape") {
+        closeModal();
+      }
+
+    }
+  );
+
+
+  form?.addEventListener(
+    "submit",
+    async function (event) {
+
+      event.preventDefault();
+
+
+      const user = username.value.trim();
+      const pass = password.value;
+
+
+      if (!user || !pass) {
+
+        message.textContent =
+          "❌ Введіть логін і пароль.";
+
+        return;
+
+      }
+
+
+      loginButton.disabled = true;
+      loginButton.textContent = "Перевірка...";
+      message.textContent = "";
+
+
+      try {
+
+        const response = await fetch(
+          "/api/auth/login",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json"
+            },
+
+            credentials: "same-origin",
+
+            body: JSON.stringify({
+              username: user,
+              password: pass
+            })
+          }
+        );
+
+
+        const data =
+          await response
+            .json()
+            .catch(function () {
+              return {};
+            });
+
+
+        if (!response.ok) {
+
+          throw new Error(
+            data.error ||
+            "Невірний логін або пароль."
+          );
+
+        }
+
+
+        message.style.color = "#70d890";
+        message.textContent =
+          "✅ Вхід успішний. Відкриваємо адмінку...";
+
+
+        setTimeout(
+          function () {
+            window.location.href =
+              "/admin.html";
+          },
+          400
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "Admin login:",
+          error
+        );
+
+
+        message.style.color =
+          "#ffaaa0";
+
+
+        message.textContent =
+          "❌ " +
+          (
+            error.message ||
+            "Не вдалося виконати вхід."
+          );
+
+
+        loginButton.disabled =
+          false;
+
+        loginButton.textContent =
+          "Увійти";
+
+      }
+
+    }
+  );
+
+})();
+</script>
+
 </body>
-</html>
+      </html>
