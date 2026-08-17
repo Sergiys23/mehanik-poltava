@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="uk">
+
+<head>
+<meta charset="utf-8">
+
+<meta name="viewport"
+      content="width=device-width,initial-scale=1">
+
+<title>Механік — Адмінка відгуків</title>
+
+<style>
+
+:root{
+  --bg:#0b0d10;
+  --panel:#151a20;
+  --panel2:#1c2229;
+  --text:#f5f7f8;
+  --muted:#9da6af;
+  --accent:#ff6a00;
+  --green:#18c77a;
+  --red:#e74c3c;
+  --line:#2a3139;
+}
+
+*{
+  box-sizing:border-box;
+}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,Helvetica,sans-serif;
+}
+
+.container{
+  width:min(1100px,calc(100% - 30px));
+  margin:auto;
+  padding:40px 0 80px;
+}
+
+h1{
+  margin:0 0 8px;
+  font-size:36px;
+}
+
+.subtitle{
+  color:var(--muted);
+  margin-bottom:30px;
+}
+
+.login,
+.review{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:22px;
+}
+
+.login{
+  max-width:500px;
+  margin:auto;
+}
+
+input{
+  width:100%;
+  padding:14px;
+  background:#0d1014;
+  color:white;
+  border:1px solid var(--line);
+  border-radius:8px;
+  font-size:16px;
+  margin-bottom:12px;
+}
+
+button{
+  border:0;
+  border-radius:8px;
+  padding:12px 18px;
+  font-weight:800;
+  cursor:pointer;
+  font-size:14px;
+}
+
+.login button{
+  width:100%;
+  background:var(--accent);
+  color:#111;
+}
+
+#admin{
+  display:none;
+}
+
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  margin-bottom:25px;
+}
+
+.refresh{
+  background:#222a32;
+  color:white;
+}
+
+.logout{
+  background:#252b32;
+  color:#ddd;
+}
+
+.review-list{
+  display:grid;
+  gap:15px;
+}
+
+.review{
+  position:relative;
+}
+
+.review.pending{
+  border-left:4px solid var(--accent);
+}
+
+.review.published{
+  border-left:4px solid var(--green);
+}
+
+.review-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+}
+
+.name{
+  font-size:20px;
+  font-weight:900;
+}
+
+.date{
+  color:var(--muted);
+  font-size:12px;
+}
+
+.stars{
+  color:#ffab00;
+  letter-spacing:2px;
+  margin:8px 0;
+}
+
+.text{
+  color:#d7dce1;
+  font-size:16px;
+  line-height:1.6;
+  white-space:pre-wrap;
+}
+
+.status{
+  display:inline-block;
+  margin-top:15px;
+  padding:5px 9px;
+  border-radius:6px;
+  font-size:12px;
+  font-weight:800;
+}
+
+.status.pending{
+  background:rgba(255,106,0,.15);
+  color:var(--accent);
+}
+
+.status.published{
+  background:rgba(24,199,122,.15);
+  color:var(--green);
+}
+
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:18px;
+}
+
+.publish{
+  background:var(--green);
+  color:#07150f;
+}
+
+.hide{
+  background:#303841;
+  color:white;
+}
+
+.delete{
+  background:var(--red);
+  color:white;
+}
+
+.message{
+  padding:15px;
+  margin-bottom:20px;
+  border-radius:8px;
+  display:none;
+}
+
+.message.error{
+  background:rgba(231,76,60,.15);
+  color:#ff8d80;
+}
+
+.message.success{
+  background:rgba(24,199,122,.15);
+  color:#65e5a9;
+}
+
+.empty{
+  text-align:center;
+  padding:40px;
+  color:var(--muted);
+  background:var(--panel);
+  border-radius:12px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- LOGIN -->
+
+  <div id="login" class="login">
+
+    <h1>Механік</h1>
+
+    <div class="subtitle">
+      Адмін-панель відгуків
+    </div>
+
+    <input
+      id="password"
+      type="password"
+      placeholder="Пароль адміністратора"
+      autocomplete="current-password"
+    >
+
+    <button onclick="login()">
+      Увійти
+    </button>
+
+  </div>
+
+
+  <!-- ADMIN -->
+
+  <div id="admin">
+
+    <div class="top">
+
+      <div>
+        <h1>Відгуки</h1>
+
+        <div class="subtitle">
+          Модерація відгуків клієнтів
+        </div>
+      </div>
+
+      <div>
+
+        <button
+          class="refresh"
+          onclick="loadReviews()">
+          🔄 Оновити
+        </button>
+
+        <button
+          class="logout"
+          onclick="logout()">
+          Вийти
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <div id="message"
+         class="message">
+    </div>
+
+
+    <div id="reviews"
+         class="review-list">
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+let adminPassword = "";
+
+
+/* =========================
+   LOGIN
+========================= */
+
+function login(){
+
+  const password =
+    document.getElementById("password").value.trim();
+
+  if(!password){
+    showMessage(
+      "Введіть пароль",
+      true
+    );
+    return;
+  }
+
+  adminPassword = password;
+
+  loadReviews();
+
+}
+
+
+/* =========================
+   LOAD REVIEWS
+========================= */
+
+async function loadReviews(){
+
+  try{
+
+    const response =
+      await fetch("/api/admin/reviews",{
+
+        headers:{
+          "x-admin-password":
+            adminPassword
+        }
+
+      });
+
+
+    const data =
+      await response.json();
+
+
+    if(!response.ok){
+
+      throw new Error(
+        data.error || "Помилка авторизації"
+      );
+
+    }
+
+
+    document.getElementById("login")
+      .style.display="none";
+
+    document.getElementById("admin")
+      .style.display="block";
+
+
+    renderReviews(data);
+
+
+  }catch(error){
+
+    adminPassword="";
+
+    document.getElementById("admin")
+      .style.display="none";
+
+    document.getElementById("login")
+      .style.display="block";
+
+    showMessage(
+      error.message,
+      true
+    );
+
+  }
+
+}
+
+
+/* =========================
+   RENDER
+========================= */
+
+function renderReviews(reviews){
+
+  const container =
+    document.getElementById("reviews");
+
+
+  if(!reviews.length){
+
+    container.innerHTML = `
+      <div class="empty">
+        Відгуків поки немає.
+      </div>
+    `;
+
+    return;
+  }
+
+
+  container.innerHTML =
+    reviews.map(review => {
+
+      const stars =
+        "★".repeat(review.rating) +
+        "☆".repeat(5-review.rating);
+
+
+      const status =
+        Number(review.approved) === 1
+          ? "published"
+          : "pending";
+
+
+      const statusText =
+        status === "published"
+          ? "Опубліковано"
+          : "Очікує перевірки";
+
+
+      return `
+
+        <article
+          class="review ${status}">
+
+          <div class="review-header">
+
+            <div class="name">
+              ${escapeHtml(review.name)}
+            </div>
+
+            <div class="date">
+              ${escapeHtml(review.created_at)}
+            </div>
+
+          </div>
+
+
+          <div class="stars">
+            ${stars}
+          </div>
+
+
+          <div class="text">
+            ${escapeHtml(review.text)}
+          </div>
+
+
+          <span
+            class="status ${status}">
+            ${statusText}
+          </span>
+
+
+          <div class="actions">
+
+            ${
+              status === "pending"
+              ? `
+                <button
+                  class="publish"
+                  onclick="actionReview(
+                    ${review.id},
+                    'approve'
+                  )">
+                  ✓ Опублікувати
+                </button>
+              `
+              : `
+                <button
+                  class="hide"
+                  onclick="actionReview(
+                    ${review.id},
+                    'hide'
+                  )">
+                  Приховати
+                </button>
+              `
+            }
+
+
+            <button
+              class="delete"
+              onclick="deleteReview(
+                ${review.id}
+              )">
+              🗑 Видалити
+            </button>
+
+          </div>
+
+        </article>
+
+      `;
+
+    }).join("");
+
+}
+
+
+/* =========================
+   ACTION
+========================= */
+
+async function actionReview(
+  id,
+  action
+){
+
+  try{
+
+    const response =
+      await fetch(
+        "/api/admin/reviews",
+        {
+          method:"POST",
+
+          headers:{
+            "content-type":
+              "application/json",
+
+            "x-admin-password":
+              adminPassword
+          },
+
+          body:JSON.stringify({
+            id:id,
+            action:action
+          })
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if(!response.ok){
+
+      throw new Error(
+        data.error ||
+        "Помилка"
+      );
+
+    }
+
+
+    showMessage(
+      data.message ||
+      "Готово",
+      false
+    );
+
+
+    loadReviews();
+
+
+  }catch(error){
+
+    showMessage(
+      error.message,
+      true
+    );
+
+  }
+
+}
+
+
+/* =========================
+   DELETE
+========================= */
+
+function deleteReview(id){
+
+  if(
+    !confirm(
+      "Видалити цей відгук назавжди?"
+    )
+  ){
+    return;
+  }
+
+
+  actionReview(
+    id,
+    "delete"
+  );
+
+}
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+function logout(){
+
+  adminPassword="";
+
+  document.getElementById("admin")
+    .style.display="none";
+
+  document.getElementById("login")
+    .style.display="block";
+
+  document.getElementById("password")
+    .value="";
+
+}
+
+
+/* =========================
+   MESSAGE
+========================= */
+
+function showMessage(
+  text,
+  error=false
+){
+
+  const box =
+    document.getElementById("message");
+
+
+  box.textContent=text;
+
+  box.className =
+    "message " +
+    (error ? "error" : "success");
+
+  box.style.display="block";
+
+
+  setTimeout(
+    ()=>{
+      box.style.display="none";
+    },
+    3500
+  );
+
+}
+
+
+/* =========================
+   SECURITY
+========================= */
+
+function escapeHtml(value){
+
+  return String(value)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+
+}
+
+
+/* ENTER */
+
+document
+  .getElementById("password")
+  .addEventListener(
+    "keydown",
+    event => {
+
+      if(event.key === "Enter"){
+        login();
+      }
+
+    }
+  );
+
+</script>
+
+</body>
+  </html>
