@@ -1,23 +1,27 @@
 # Механік Полтава
 
-Сайт автосервісу на Cloudflare Workers + GitHub.
+Повна версія сайту автосервісу з:
+- відгуками з модерацією;
+- онлайн-записом;
+- адмін-панеллю;
+- D1.
 
 ## Файли
-- `index.html` — повний сайт
-- `worker.js` — API відгуків
-- `schema.sql` — таблиця Cloudflare D1
-- `wrangler.toml` — конфігурація Workers
-- `images/logo.png` — залишити у репозиторії
+- `index.html` — сайт
+- `admin.html` — адмінка
+- `worker.js` — API Worker
+- `schema.sql` — таблиці D1
+- `wrangler.toml` — Cloudflare Assets
+- `images/logo.png` — логотип
 
-## Cloudflare D1
-1. Створи D1 database, наприклад `mehanik-reviews`.
-2. Виконай `schema.sql` у SQL Console.
-3. У Worker відкрий Bindings → Add binding → D1 Database.
-4. Variable name: `DB`.
-5. Вибери створену базу.
-6. Збережи і зроби новий deployment.
+## Cloudflare
+У Worker має бути:
+- Assets binding: `ASSETS`
+- D1 binding: `DB` → `mehanik-reviews`
+- Secret: `ADMIN_PASSWORD`
 
-Після цього відгуки будуть спільними для всіх відвідувачів. Нові відгуки записуються з `approved=0`, тобто їх можна модерувати через D1 SQL Console. Для публікації:
-`UPDATE reviews SET approved=1 WHERE id=ID;`
+## D1
+Якщо таблиця `bookings` ще не створена, виконай `schema.sql` у D1 Console. Існуюча таблиця `reviews` не видаляється.
 
-Без D1 сайт все одно працює, але форма відгуків використовує локальне сховище браузера як резервний режим.
+## Важливо
+Не зберігай пароль адміністратора в GitHub. Файл `Passwordd` навмисно не включений у ZIP.

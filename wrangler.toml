@@ -6,6 +6,9 @@ compatibility_date = "2026-08-16"
 directory = "."
 binding = "ASSETS"
 
-# Після створення D1 у Cloudflare прив'яжи його в Bindings
-# з ім'ям DB. ID бази сюди додавати не обов'язково, якщо binding
-# налаштований через Cloudflare Dashboard.
+# D1 binding is currently configured in Cloudflare Dashboard.
+# If you later manage it with Wrangler, add:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "mehanik-reviews"
+# database_id = "YOUR_DATABASE_ID"
