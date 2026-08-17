@@ -1,70 +1,22 @@
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"};
-
-const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json",...cors}});
-const okDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(s);
-const slots=()=>{const a=[];for(let h=9;h<18;h++){a.push(`${String(h).padStart(2,"0")}:00`);a.push(`${String(h).padStart(2,"0")}:30`)}return a};
-
-function auth(request,env){
-  const h=request.headers.get("Authorization")||"";
-  return h===`Bearer ${env.ADMIN_PASSWORD||"CHANGE_ME"}`;
-}
-
-export default {
- async fetch(request,env){
-  if(request.method==="OPTIONS")return new Response(null,{headers:cors});
-  const url=new URL(request.url);
-  if(url.pathname.startsWith("/api/")){
-    try{
-      if(url.pathname==="/api/admin/login"&&request.method==="POST"){
-        const {password}=await request.json();
-        if(password!==(env.ADMIN_PASSWORD||"CHANGE_ME"))return json({error:"Unauthorized"},401);
-        return json({token:env.ADMIN_PASSWORD||"CHANGE_ME"});
-      }
-
-      if(url.pathname==="/api/availability"&&request.method==="GET"){
-        const date=url.searchParams.get("date");
-        if(!okDate(date))return json({error:"Bad date"},400);
-        const rows=await env.DB.prepare("SELECT time FROM bookings WHERE date=? AND status IN ('pending','confirmed') UNION SELECT time FROM blocked_slots WHERE date=?").bind(date,date).all();
-        const busy=new Set(rows.results.map(x=>x.time));
-        return json({date,slots:slots().map(time=>({time,busy:busy.has(time)}))});
-      }
-
-      if(url.pathname==="/api/bookings"&&request.method==="POST"){
-        const b=await request.json();
-        for(const k of ["name","phone","car","service","date","time"])if(!b[k])return json({error:`Missing ${k}`},400);
-        if(!okDate(b.date)||!slots().includes(b.time))return json({error:"Invalid slot"},400);
-        const exists=await env.DB.prepare("SELECT id FROM bookings WHERE date=? AND time=? AND status IN ('pending','confirmed') UNION SELECT id FROM blocked_slots WHERE date=? AND time=?").bind(b.date,b.time,b.date,b.time).first();
-        if(exists)return json({error:"Slot busy"},409);
-        await env.DB.prepare("INSERT INTO bookings(name,phone,car,service,date,time,note) VALUES(?,?,?,?,?,?,?)").bind(b.name,b.phone,b.car,b.service,b.date,b.time,b.note||"").run();
-        return json({ok:true},201);
-      }
-
-      if(url.pathname==="/api/reviews"&&request.method==="GET"){
-        const r=await env.DB.prepare("SELECT id,name,rating,text FROM reviews WHERE published=1 ORDER BY id DESC LIMIT 30").all();return json(r.results);
-      }
-      if(url.pathname==="/api/works"&&request.method==="GET"){
-        const r=await env.DB.prepare("SELECT id,title,description,image_url FROM works WHERE published=1 ORDER BY id DESC LIMIT 30").all();return json(r.results);
-      }
-
-      if(url.pathname==="/api/admin/bookings"&&request.method==="GET"){
-        if(!auth(request,env))return json({error:"Unauthorized"},401);
-        const r=await env.DB.prepare("SELECT * FROM bookings ORDER BY date,time DESC").all();return json(r.results);
-      }
-      const match=url.pathname.match(/^\/api\/admin\/bookings\/(\d+)$/);
-      if(match&&request.method==="PATCH"){
-        if(!auth(request,env))return json({error:"Unauthorized"},401);
-        const {status}=await request.json();
-        if(!["pending","confirmed","cancelled","completed"].includes(status))return json({error:"Bad status"},400);
-        await env.DB.prepare("UPDATE bookings SET status=? WHERE id=?").bind(status,match[1]).run();return json({ok:true});
-      }
-      if(url.pathname==="/api/admin/blocks"&&request.method==="POST"){
-        if(!auth(request,env))return json({error:"Unauthorized"},401);
-        const b=await request.json();if(!b.date||!b.time)return json({error:"Missing"},400);
-        await env.DB.prepare("INSERT INTO blocked_slots(date,time,reason) VALUES(?,?,?)").bind(b.date,b.time,b.reason||"").run();return json({ok:true},201);
-      }
-      return json({error:"Not found"},404);
-    }catch(e){return json({error:e.message||"Server error"},500)}
-  }
-  return env.ASSETS.fetch(request);
- }
-};
+const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"};
+const START="09:00",END="18:00",DAYS=new Set([1,2,3,4,5,6]);
+const DUR={"Шиномонтаж":60,"Ремонт двигуна та ходової":120,"Розвал-сходження":60,"Комп'ютерна діагностика":60};
+const json=(x,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{"Content-Type":"application/json",...CORS}});
+const min=s=>{const[a,b]=s.split(":").map(Number);return a*60+b};const pad=n=>String(n).padStart(2,"0");const tm=n=>`${pad(Math.floor(n/60))}:${pad(n%60)}`;
+const slots=()=>{const a=[];for(let n=min(START);n<min(END);n+=30)a.push(tm(n));return a};
+const overlap=(a,ad,b,bd)=>a<b+bd&&a+ad>b;
+const nowKyiv=()=>{const p=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Kyiv",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());const g=t=>p.find(x=>x.type===t)?.value;return{date:`${g("year")}-${g("month")}-${g("day")}`,m:Number(g("hour"))*60+Number(g("minute"))}};
+const working=d=>DAYS.has(new Date(`${d}T12:00:00+03:00`).getUTCDay());
+function b64(b){let s="";for(const x of b)s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")};function ub64(s){const p=s.replace(/-/g,"+").replace(/_/g,"/")+"===".slice((s.length+3)%4);return Uint8Array.from(atob(p),c=>c.charCodeAt(0))}
+async function mac(secret,text){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return new Uint8Array(await crypto.subtle.sign("HMAC",k,new TextEncoder().encode(text)))}
+async function makeToken(secret){const p=b64(new TextEncoder().encode(JSON.stringify({exp:Date.now()+8*60*60*1000})));return p+"."+b64(await mac(secret,p))}
+async function auth(req,env){try{if(!env.ADMIN_SESSION_SECRET)return false;const h=req.headers.get("Authorization")||"";if(!h.startsWith("Bearer "))return false;const[t,s]=h.slice(7).split(".");const d=JSON.parse(new TextDecoder().decode(ub64(t)));if(!d.exp||d.exp<Date.now())return false;const a=await mac(env.ADMIN_SESSION_SECRET,t),b=ub64(s);return a.length===b.length&&a.every((v,i)=>v===b[i])}catch{return false}}
+async function avail(env,date,service){const d=DUR[service],n=nowKyiv();const bs=await env.DB.prepare("SELECT time,duration FROM bookings WHERE date=? AND status IN ('pending','confirmed')").bind(date).all();const bl=await env.DB.prepare("SELECT time FROM blocked_slots WHERE date=?").bind(date).all();return slots().map(t=>{const st=min(t);const past=date<n.date||(date===n.date&&st<=n.m);const busy=bs.results.some(r=>overlap(st,d,min(r.time),Number(r.duration||60)))||bl.results.some(r=>overlap(st,d,min(r.time),30));return{time:t,busy:past||!working(date)||st+d>min(END)||busy}})}
+export default{async fetch(req,env){if(req.method==="OPTIONS")return new Response(null,{headers:CORS});const u=new URL(req.url);if(!u.pathname.startsWith("/api/"))return env.ASSETS.fetch(req);try{
+if(u.pathname==="/api/admin/login"&&req.method==="POST"){if(!env.ADMIN_PASSWORD||!env.ADMIN_SESSION_SECRET)return json({error:"Admin secrets are not configured"},503);const{password}=await req.json();if(password!==env.ADMIN_PASSWORD)return json({error:"Unauthorized"},401);return json({token:await makeToken(env.ADMIN_SESSION_SECRET)})}
+if(u.pathname==="/api/availability"&&req.method==="GET"){const date=u.searchParams.get("date"),service=u.searchParams.get("service");if(!/^\d{4}-\d{2}-\d{2}$/.test(date||"")||!DUR[service])return json({error:"Invalid date or service"},400);return json({date,service,duration:DUR[service],slots:await avail(env,date,service)})}
+if(u.pathname==="/api/bookings"&&req.method==="POST"){const b=await req.json();for(const k of ["name","phone","car","service","date","time"])if(typeof b[k]!=="string"||!b[k].trim())return json({error:`Missing ${k}`},400);if(!DUR[b.service]||!slots().includes(b.time))return json({error:"Invalid booking"},400);const d=DUR[b.service],n=nowKyiv(),st=min(b.time);if(!working(b.date)||b.date<n.date||(b.date===n.date&&st<=n.m)||st+d>min(END))return json({error:"Slot unavailable"},409);const bs=await env.DB.prepare("SELECT time,duration FROM bookings WHERE date=? AND status IN ('pending','confirmed')").bind(b.date).all();if(bs.results.some(r=>overlap(st,d,min(r.time),Number(r.duration||60))))return json({error:"Slot busy"},409);const bl=await env.DB.prepare("SELECT time FROM blocked_slots WHERE date=?").bind(b.date).all();if(bl.results.some(r=>overlap(st,d,min(r.time),30)))return json({error:"Slot blocked"},409);await env.DB.prepare("INSERT INTO bookings(name,phone,car,service,date,time,duration,note) VALUES(?,?,?,?,?,?,?,?)").bind(b.name.trim(),b.phone.trim(),b.car.trim(),b.service,b.date,b.time,d,(b.note||"").trim()).run();return json({ok:true},201)}
+if(u.pathname==="/api/reviews"&&req.method==="GET"){const r=await env.DB.prepare("SELECT id,name,rating,text FROM reviews WHERE published=1 ORDER BY id DESC LIMIT 30").all();return json(r.results)}
+if(u.pathname==="/api/works"&&req.method==="GET"){const r=await env.DB.prepare("SELECT id,title,description,image_url FROM works WHERE published=1 ORDER BY id DESC LIMIT 30").all();return json(r.results)}
+if(u.pathname.startsWith("/api/admin/")){if(!(await auth(req,env)))return json({error:"Unauthorized"},401);if(u.pathname==="/api/admin/bookings"&&req.method==="GET"){const r=await env.DB.prepare("SELECT * FROM bookings ORDER BY date ASC,time ASC").all();return json(r.results)}const m=u.pathname.match(/^\/api\/admin\/bookings\/(\d+)$/);if(m&&req.method==="PATCH"){const{status}=await req.json();if(!["pending","confirmed","cancelled","completed"].includes(status))return json({error:"Bad status"},400);await env.DB.prepare("UPDATE bookings SET status=? WHERE id=?").bind(status,m[1]).run();return json({ok:true})}if(u.pathname==="/api/admin/blocks"&&req.method==="POST"){const b=await req.json();if(!/^\d{4}-\d{2}-\d{2}$/.test(b.date||"")||!slots().includes(b.time))return json({error:"Invalid block"},400);try{await env.DB.prepare("INSERT INTO blocked_slots(date,time,reason) VALUES(?,?,?)").bind(b.date,b.time,(b.reason||"").trim()).run()}catch(e){if(String(e.message||"").toLowerCase().includes("unique"))return json({error:"Already blocked"},409);throw e}return json({ok:true},201)}}
+return json({error:"Not found"},404)}catch(e){return json({error:e.message||"Server error"},500)}}};
