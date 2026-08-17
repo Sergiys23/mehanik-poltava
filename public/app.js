@@ -29,7 +29,8 @@ async function selectDate(d){
   document.querySelector("#selectedDateTitle").textContent=d.toLocaleDateString("uk-UA",{weekday:"long",day:"numeric",month:"long"});
   const box=document.querySelector("#slots");box.innerHTML="<p class='muted'>Завантаження...</p>";
   try{
-    const data=await api(`/api/availability?date=${state.selected}`);
+    const service=document.querySelector('select[name="service"]')?.value || "Комп'ютерна діагностика";
+    const data=await api(`/api/availability?date=${state.selected}&service=${encodeURIComponent(service)}`);
     box.innerHTML="";
     data.slots.forEach(s=>{
       const b=document.createElement("button");b.className="slot"+(s.busy?" busy":"");b.textContent=s.time+(s.busy?" — зайнято":"");
@@ -59,9 +60,32 @@ document.querySelector("#bookingForm").onsubmit=async e=>{
 async function loadContent(){
   try{
     const [works,reviews]=await Promise.all([api("/api/works"),api("/api/reviews")]);
-    document.querySelector("#worksGrid").innerHTML=works.map(w=>`<article class="card"><div class="work-image">${w.image_url?`<img src="${escapeHtml(w.image_url)}" alt="">`:"🔧"}</div><h3>${escapeHtml(w.title)}</h3><p>${escapeHtml(w.description||"Робота виконана на СТО Механік.")}</p></article>`).join("")||"<p class='muted'>Фотографії робіт скоро з'являться.</p>";
-    document.querySelector("#reviewsGrid").innerHTML=reviews.map(r=>`<article class="card review"><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5-r.rating)}</div><h3>${escapeHtml(r.name)}</h3><p>${escapeHtml(r.text)}</p></article>`).join("")||"<p class='muted'>Відгуки скоро з'являться.</p>";
-  }catch(e){}
+    document.querySelector("#worksGrid").innerHTML=works.map(w=>`
+      <article class="card">
+        <div class="work-image">${w.image_url?`<img src="${escapeHtml(w.image_url)}" alt="${escapeHtml(w.title)}" loading="lazy">`:"🔧"}</div>
+        <h3>${escapeHtml(w.title)}</h3>
+        ${w.car?`<p><b>🚗 ${escapeHtml(w.car)}</b></p>`:""}
+        <p>${escapeHtml(w.description||"Робота виконана на СТО Механік.")}</p>
+        ${w.instagram_url?`<a href="${escapeHtml(w.instagram_url)}" target="_blank" rel="noopener">Instagram →</a>`:""}
+      </article>`).join("")||"<p class='muted'>Фотографії робіт скоро з'являться.</p>";
+    document.querySelector("#reviewsGrid").innerHTML=reviews.map(r=>`
+      <article class="card review"><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5-r.rating)}</div><h3>${escapeHtml(r.name)}</h3><p>${escapeHtml(r.text)}</p></article>`
+    ).join("")||"<p class='muted'>Відгуки скоро з'являться.</p>";
+  }catch(e){console.error(e)}
 }
+const reviewForm=document.querySelector("#reviewForm");
+if(reviewForm) reviewForm.onsubmit=async e=>{
+  e.preventDefault();
+  const msg=document.querySelector("#reviewMessage");
+  msg.textContent="Надсилаємо...";
+  try{
+    const data=Object.fromEntries(new FormData(reviewForm));
+    const r=await api("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    msg.textContent="✅ "+(r.message||"Відгук надіслано на модерацію.");
+    reviewForm.reset();
+  }catch(err){msg.textContent="❌ "+(err.message||"Не вдалося надіслати відгук.")}
+};
+
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 renderCalendar();loadContent();
+document.querySelector('select[name="service"]')?.addEventListener("change",()=>{if(state.selected) selectDate(new Date(`${state.selected}T12:00:00`));});

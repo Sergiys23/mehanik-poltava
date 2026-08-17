@@ -1,23 +1,29 @@
 <!doctype html>
-<html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Адмін — Механік Полтава</title><link rel="stylesheet" href="/style.css"></head>
+<html lang="uk">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Механік — Адмін</title><link rel="stylesheet" href="/style.css">
+<style>
+.admin-wrap{max-width:1250px;margin:auto;padding:35px 6% 80px}.admin-top{display:flex;justify-content:space-between;gap:15px;align-items:center}.admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:25px 0}.admin-tabs button{border:1px solid var(--line);background:var(--panel);color:#fff}.admin-tabs button.active{background:var(--accent);color:#111}.admin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}.admin-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px}.admin-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.danger{background:var(--red)!important;color:#fff!important}.muted{color:var(--muted)}.admin-form{display:grid;gap:10px;max-width:700px}.admin-form input,.admin-form textarea,.admin-form select{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:#fff;font:inherit}.admin-list{display:grid;gap:12px}.role{color:var(--accent);font-weight:900}.login-box{max-width:430px;margin:10vh auto}.hidden{display:none!important}.work-admin-img{width:150px;height:100px;object-fit:cover;border-radius:10px}.work-admin{display:flex;gap:15px}.log-row{font-family:monospace;font-size:13px;border-bottom:1px solid var(--line);padding:10px 0}@media(max-width:800px){.admin-grid{grid-template-columns:1fr}.work-admin{flex-direction:column}.work-admin-img{width:100%;height:180px}.admin-top{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
 <body>
 <header class="header"><a class="logo" href="/">МЕХАНІК <span>АДМІН</span></a><a href="/">← На сайт</a></header>
-<main class="section">
-<div id="login" class="form"><h2>Вхід адміністратора</h2><input id="password" type="password" placeholder="Пароль"><button class="btn primary" id="loginBtn">Увійти</button><p id="loginMsg"></p></div>
-<div id="panel" class="hidden">
-<div class="section-head"><p class="eyebrow">ПАНЕЛЬ КЕРУВАННЯ</p><h1>Календар та заявки</h1></div>
-<div class="cards three">
-  <div class="card"><h3>Нові заявки</h3><strong id="pendingCount">0</strong></div>
-  <div class="card"><h3>Підтверджені</h3><strong id="confirmedCount">0</strong></div>
-  <div class="card"><h3>Всього</h3><strong id="totalCount">0</strong></div>
-</div>
-<section class="section" style="padding-left:0;padding-right:0">
-<h2>Записи</h2><div id="bookings" class="cards"></div>
+<main class="admin-wrap">
+<section id="login" class="form login-box">
+<h2>🔐 Вхід адміністратора</h2>
+<p class="muted">Для звичайного адміністратора: <b>admin</b>. Для повного доступу: <b>superadmin</b>.</p>
+<input id="loginUser" placeholder="Логін" autocomplete="username">
+<input id="loginPass" type="password" placeholder="Пароль" autocomplete="current-password">
+<button id="loginBtn" class="btn primary">Увійти</button><p id="loginMsg"></p>
 </section>
-<section class="section" style="padding-left:0;padding-right:0">
-<h2>Додати блокування часу</h2>
-<form id="blockForm" class="form"><input type="date" name="date" required><input type="time" name="time" required><input name="reason" placeholder="Причина"><button class="btn primary">Заблокувати</button><p id="blockMsg"></p></form>
+<section id="panel" class="hidden">
+<div class="admin-top"><div><p class="eyebrow">ПАНЕЛЬ КЕРУВАННЯ</p><h1>Механік Полтава</h1><div>Роль: <span id="role" class="role"></span></div></div><div class="actions"><button id="refresh" class="btn secondary">🔄 Оновити</button><button id="logout" class="btn secondary">Вийти</button></div></div>
+<nav class="admin-tabs">
+<button class="btn active" data-tab="bookings">📅 Заявки</button><button class="btn" data-tab="history">🗂 Архів</button><button class="btn" data-tab="reviews">⭐ Відгуки</button><button class="btn" data-tab="works">🔧 Наші роботи</button><button class="btn" data-tab="logs">📋 Журнал</button><button class="btn" data-tab="blocks">⛔ Блокування</button>
+</nav>
+<div id="msg"></div><div id="content"></div>
 </section>
-</div></main>
+</main>
 <script src="/admin.js"></script>
 </body></html>

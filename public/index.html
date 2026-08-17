@@ -16,7 +16,7 @@
     <a href="#reviews">Відгуки</a>
     <a href="#contacts">Контакти</a>
   </nav>
-  <a class="header-phone" data-phone-link href="#">📞 <span data-phone></span></a>
+  <div class="header-actions"><a class="admin-link" href="/admin.html">🔐 Адмін</a><a class="header-phone" data-phone-link href="#">📞 <span data-phone></span></a></div>
 </header>
 
 <main>
@@ -104,6 +104,14 @@
 <section id="reviews" class="section">
   <div class="section-head"><p class="eyebrow">ВІДГУКИ</p><h2>Що кажуть клієнти</h2></div>
   <div id="reviewsGrid" class="cards three"></div>
+  <form id="reviewForm" class="form review-form">
+    <h3>Залишити відгук</h3>
+    <input name="name" placeholder="Ваше ім'я" required>
+    <select name="rating" required><option value="">Оцінка</option><option value="5">★★★★★ 5</option><option value="4">★★★★☆ 4</option><option value="3">★★★☆☆ 3</option><option value="2">★★☆☆☆ 2</option><option value="1">★☆☆☆☆ 1</option></select>
+    <textarea name="text" placeholder="Ваш відгук" required></textarea>
+    <button class="btn primary" type="submit">Надіслати відгук</button>
+    <p id="reviewMessage" class="message"></p>
+  </form>
 </section>
 
 <section id="contacts" class="contacts section">
@@ -112,7 +120,7 @@
 </section>
 </main>
 
-<footer><span>© 2026 Механік Полтава</span><a href="/admin.html">Адмін</a></footer>
+<footer><span>© 2026 Механік Полтава</span><a href="/admin.html">🔐 Адмін</a></footer>
 <div class="mobile-bar"><a data-phone-link href="#">📞 Подзвонити</a><a href="#booking">📅 Записатися</a><a href="#contacts">📍 Маршрут</a></div>
 <script src="/config.js"></script><script src="/app.js"></script>
 </body>
