@@ -6,9 +6,7 @@ compatibility_date = "2026-08-16"
 directory = "."
 binding = "ASSETS"
 
-# D1 binding is currently configured in Cloudflare Dashboard.
-# If you later manage it with Wrangler, add:
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "mehanik-reviews"
-# database_id = "YOUR_DATABASE_ID"
+[[d1_databases]]
+binding = "DB"
+database_name = "mehanik-reviews"
+database_id = "2b6cab29-e36a-4357-88a4-2605a9e87fbc"
