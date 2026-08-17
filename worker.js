@@ -71,7 +71,6 @@ async function getSessionRole(request, env) {
     }
   }
 
-  // Backward compatibility with the old admin panel.
   const password = request.headers.get("x-admin-password") || "";
   if (env.SUPERADMIN_PASSWORD && password === env.SUPERADMIN_PASSWORD) return "superadmin";
   if (env.ADMIN_PASSWORD && password === env.ADMIN_PASSWORD) return "admin";
@@ -232,9 +231,29 @@ try{const r=await fetch('/api/works');const items=await r.json();const grid=docu
 </script>`;
 
   let out = html.replace("</head>", style + "</head>");
-  out = out.replace(/<section id="reviews">/i, workSection + "<section id=\"reviews\">");
+
+  // Вставляємо роботи перед </main>, а не шукаємо конкретний id секції.
+  // Так блок не залежить від структури index.html.
+  if (out.includes("</main>")) {
+    out = out.replace("</main>", workSection + "</main>");
+  } else {
+    out = out.replace("</body>", workSection + "</body>");
+  }
+
   out = out.replace("</body>", script + "</body>");
-  return new Response(out, { status: response.status, headers: response.headers });
+
+  // Після модифікації HTML старі Content-Length/ETag/Content-Encoding
+  // від ASSETS вже не відповідають новому тілу відповіді.
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  headers.delete("etag");
+  headers.set("cache-control", "no-store");
+
+  return new Response(out, {
+    status: response.status,
+    headers
+  });
 }
 
 export default {
@@ -368,7 +387,6 @@ export default {
       return json({error:"Unknown admin endpoint"},404);
     }
 
-    // Serve the existing admin panel directly, while authentication is handled by the secure cookie.
     if (url.pathname === "/admin" || url.pathname === "/admin.html") {
       if (!env.ASSETS) return new Response("ASSETS binding is not configured",{status:500});
       return env.ASSETS.fetch(new Request(new URL("/admin.html",request.url),request));
