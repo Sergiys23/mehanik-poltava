@@ -8,14 +8,12 @@ CREATE TABLE IF NOT EXISTS bookings (
   service TEXT NOT NULL,
   date TEXT NOT NULL,
   time TEXT NOT NULL,
+  duration INTEGER NOT NULL DEFAULT 60,
   note TEXT DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_booking_slot
-ON bookings(date, time)
-WHERE status IN ('pending', 'confirmed');
+CREATE UNIQUE INDEX IF NOT EXISTS idx_booking_slot ON bookings(date,time) WHERE status IN ('pending','confirmed');
 
 CREATE TABLE IF NOT EXISTS blocked_slots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,9 +22,7 @@ CREATE TABLE IF NOT EXISTS blocked_slots (
   reason TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_blocked_slot
-ON blocked_slots(date, time);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_blocked_slot ON blocked_slots(date,time);
 
 CREATE TABLE IF NOT EXISTS reviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,8 +36,46 @@ CREATE TABLE IF NOT EXISTS reviews (
 CREATE TABLE IF NOT EXISTS works (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
+  car TEXT DEFAULT '',
   description TEXT DEFAULT '',
   image_url TEXT DEFAULT '',
+  instagram_url TEXT DEFAULT '',
   published INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS booking_telegram (
+  booking_id INTEGER PRIMARY KEY,
+  message_id INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_telegram (
+  review_id INTEGER PRIMARY KEY,
+  message_id INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS booking_history (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  car TEXT NOT NULL,
+  service TEXT NOT NULL,
+  date TEXT NOT NULL,
+  time TEXT NOT NULL,
+  duration INTEGER NOT NULL DEFAULT 60,
+  note TEXT DEFAULT '',
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  archived_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_booking_history_archived ON booking_history(archived_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target TEXT DEFAULT '',
+  details TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC);
