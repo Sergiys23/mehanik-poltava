@@ -1,54 +1,23 @@
 <!doctype html>
-<html lang="uk">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Cache-Control" content="no-store">
-<title>Механік | Адмін-панель</title>
-<style>
-:root{--bg:#0b0d10;--panel:#151a20;--panel2:#101419;--text:#f5f7f8;--muted:#9da6af;--accent:#ff6a00;--green:#18c77a;--red:#e74c3c;--blue:#4aa3ff;--line:#2a3139;--yellow:#ffb000}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}button,input,textarea,select{font:inherit}.wrap{width:min(1150px,calc(100% - 20px));margin:auto;padding:20px 0 70px}.top{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:18px}.top h1{margin:0}.muted{color:var(--muted)}.role{display:inline-block;margin-top:5px;padding:5px 9px;border-radius:7px;background:#ff6a0018;color:var(--accent);font-size:12px;font-weight:900}.actions,.tabs,.form-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:9px;padding:11px 14px;font-weight:900;cursor:pointer}.btn:disabled{opacity:.5}.primary{background:var(--accent);color:#111}.gray{background:#303841;color:#fff}.green{background:var(--green);color:#07150f}.red{background:var(--red);color:#fff}.blue{background:var(--blue);color:#06111c}.yellow{background:var(--yellow);color:#15100a}.tabs{margin-bottom:16px}.tab{background:#20262d;color:#ddd}.tab.active{background:var(--accent);color:#111}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px;margin-bottom:12px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.input,.textarea,.select{width:100%;padding:12px;background:#0d1014;color:#fff;border:1px solid var(--line);border-radius:8px}.textarea{min-height:110px;resize:vertical}.title{font-size:19px;font-weight:900}.meta{color:var(--muted);font-size:14px;margin-top:6px;line-height:1.45}.text{margin-top:9px;white-space:pre-wrap;line-height:1.5}.status{display:inline-block;margin-top:10px;padding:6px 9px;border-radius:7px;font-size:12px;font-weight:900}.new{background:#ff6a0022;color:#ff7a18}.confirmed{background:#18c77a22;color:#18c77a}.completed{background:#4aa3ff22;color:#75bbff}.cancelled{background:#e74c3c22;color:#ff8d80}.empty,.loading{padding:35px;text-align:center;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:14px}.msg{padding:11px;border-radius:9px;margin:0 0 12px}.success{background:#18c77a18;color:#65e5a9;border:1px solid #18c77a35}.error{background:#e74c3c18;color:#ffaaa0;border:1px solid #e74c3c35}.work{display:grid;grid-template-columns:220px 1fr;gap:15px}.work img{width:100%;height:150px;object-fit:cover;border-radius:10px;background:#0d1014}.log{font-family:monospace;font-size:13px}.danger-zone{border-color:#e74c3c55}.hidden{display:none!important}@media(max-width:750px){.top{align-items:flex-start;flex-direction:column}.grid,.grid3{grid-template-columns:1fr}.work{grid-template-columns:1fr}.work img{height:220px}.actions .btn{flex:1}}
-</style>
-</head>
+<html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Адмін — Механік Полтава</title><link rel="stylesheet" href="/style.css"></head>
 <body>
-<div class="wrap">
-<header class="top"><div><h1>МЕХАНІК</h1><div class="muted">Керування сайтом</div><div id="role" class="role">Перевірка доступу…</div></div><div class="actions"><button class="btn gray" id="refresh">🔄 Оновити</button><button class="btn gray" id="logout">Вийти</button></div></header>
-<div id="msg"></div>
-<div class="tabs">
-<button class="btn tab active" data-tab="bookings">📅 Заявки</button>
-<button class="btn tab" data-tab="history">🗂 Архів</button>
-<button class="btn tab" data-tab="reviews">⭐ Відгуки</button>
-<button class="btn tab" data-tab="works">🔧 Наші роботи</button>
-<button class="btn tab" data-tab="logs">📋 Журнал дій</button>
+<header class="header"><a class="logo" href="/">МЕХАНІК <span>АДМІН</span></a><a href="/">← На сайт</a></header>
+<main class="section">
+<div id="login" class="form"><h2>Вхід адміністратора</h2><input id="password" type="password" placeholder="Пароль"><button class="btn primary" id="loginBtn">Увійти</button><p id="loginMsg"></p></div>
+<div id="panel" class="hidden">
+<div class="section-head"><p class="eyebrow">ПАНЕЛЬ КЕРУВАННЯ</p><h1>Календар та заявки</h1></div>
+<div class="cards three">
+  <div class="card"><h3>Нові заявки</h3><strong id="pendingCount">0</strong></div>
+  <div class="card"><h3>Підтверджені</h3><strong id="confirmedCount">0</strong></div>
+  <div class="card"><h3>Всього</h3><strong id="totalCount">0</strong></div>
 </div>
-<div id="content"><div class="loading">Перевірка авторизації…</div></div>
-</div>
-<script>
-'use strict';
-let role=null,currentTab='bookings';
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-function msg(t,type='success'){const x=$('msg');x.className='msg '+type;x.textContent=t}
-function clearMsg(){$('msg').className='';$('msg').textContent=''}
-async function api(url,opt={}){const r=await fetch(url,{...opt,headers:{'content-type':'application/json',...(opt.headers||{})},credentials:'same-origin',cache:'no-store'});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d}
-async function boot(){try{const me=await api('/api/auth/me');if(!me.authenticated){location.href='/';return}role=me.role;$('role').textContent=role==='superadmin'?'👑 СУПЕР АДМІН':'🛠 АДМІН';if(role!=='superadmin')$('logs').classList?.add('hidden');await load()}catch(e){$('content').innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
-async function load(){clearMsg();$('content').innerHTML='<div class="loading">⏳ Завантаження…</div>';try{if(currentTab==='bookings')await bookings();if(currentTab==='history')await history();if(currentTab==='reviews')await reviews();if(currentTab==='works')await works();if(currentTab==='logs')await logs()}catch(e){msg(e.message,'error');$('content').innerHTML='<div class="empty">Не вдалося завантажити дані.</div>'}}
-function status(s){return '<span class="status '+esc(s)+'">'+({new:'Нова',confirmed:'Підтверджена',completed:'Виконана',cancelled:'Скасована'}[s]||esc(s))+'</span>'}
-async function bookings(){const a=await api('/api/admin/bookings');if(!a.length){$('content').innerHTML='<div class="empty">📭 Активних заявок немає.</div>';return}$('content').innerHTML=a.map(b=>`<article class="card"><div class="title">🆔 #${esc(b.id)} · ${esc(b.name)}</div><div class="meta">📞 ${esc(b.phone)} · 🚗 ${esc(b.car)}</div><div class="meta">🔧 ${esc(b.service)}</div><div class="meta">📅 ${esc(b.preferred_date)} · ⏰ ${esc(b.preferred_time)}</div>${b.comment?`<div class="text">📝 ${esc(b.comment)}</div>`:''}${status(b.status)}<div class="actions" style="margin-top:12px">${b.status==='new'?`<button class="btn green" onclick="actBooking(${b.id},'confirm')">Підтвердити</button>`:''}${b.status==='confirmed'?`<button class="btn blue" onclick="actBooking(${b.id},'complete')">Виконано</button>`:''}${b.status!=='cancelled'?`<button class="btn yellow" onclick="actBooking(${b.id},'cancel')">Скасувати</button>`:''}${b.status!=='new'?`<button class="btn gray" onclick="actBooking(${b.id},'reopen')">Повернути в нові</button>`:''}<button class="btn red" onclick="actBooking(${b.id},'delete')">В архів</button></div></article>`).join('')}
-async function actBooking(id,action){try{await api('/api/admin/bookings',{method:'POST',body:JSON.stringify({id,action})});msg('Заявку оновлено');await load()}catch(e){msg(e.message,'error')}}
-async function history(){const a=await api('/api/admin/history');if(!a.length){$('content').innerHTML='<div class="empty">🗃 Архів порожній.</div>';return}let head=`<div class="card"><div class="title">Архів заявок</div><div class="meta">${role==='superadmin'?'Супер адмін може видаляти окремі записи або очистити весь архів.':'Звичайний адмін має доступ тільки до перегляду архіву.'}</div>${role==='superadmin'?'<div class="actions" style="margin-top:12px"><button class="btn red" onclick="clearHistory()">🗑 Очистити весь архів</button></div>':''}</div>`;$('content').innerHTML=head+a.map(b=>`<article class="card"><div class="title">#${esc(b.id)} · ${esc(b.name)}</div><div class="meta">📞 ${esc(b.phone)} · 🚗 ${esc(b.car)} · 🔧 ${esc(b.service)}</div><div class="meta">📅 ${esc(b.preferred_date)} · ⏰ ${esc(b.preferred_time)} · Архів: ${esc(b.archived_at)}</div>${status(b.status)}${role==='superadmin'?`<div class="actions"><button class="btn red" onclick="deleteHistory(${b.id})">Видалити назавжди</button></div>`:''}</article>`).join('')}
-async function deleteHistory(id){if(!confirm('Видалити цей запис з архіву назавжди?'))return;try{await api('/api/admin/history?id='+encodeURIComponent(id),{method:'DELETE'});msg('Запис видалено');await load()}catch(e){msg(e.message,'error')}}
-async function clearHistory(){if(role!=='superadmin')return;if(!confirm('ОЧИСТИТИ ВЕСЬ АРХІВ? Цю дію не можна скасувати.'))return;try{await api('/api/admin/history',{method:'DELETE'});msg('Архів очищено');await load()}catch(e){msg(e.message,'error')}}
-async function reviews(){const a=await api('/api/admin/reviews');if(!a.length){$('content').innerHTML='<div class="empty">Відгуків немає.</div>';return}$('content').innerHTML=a.map(r=>`<article class="card"><div class="title">⭐ ${'★'.repeat(Number(r.rating))}${'☆'.repeat(5-Number(r.rating))} · ${esc(r.name)}</div><div class="meta">#${esc(r.id)} · ${esc(r.created_at)} · ${r.approved?'Опублікований':'На модерації'}</div><div class="text">${esc(r.text)}</div><div class="actions">${!r.approved?`<button class="btn green" onclick="reviewAct(${r.id},'approve')">Опублікувати</button>`:`<button class="btn yellow" onclick="reviewAct(${r.id},'hide')">Приховати</button>`}<button class="btn red" onclick="reviewAct(${r.id},'delete')">Видалити</button></div></article>`).join('')}
-async function reviewAct(id,action){try{await api('/api/admin/reviews',{method:'POST',body:JSON.stringify({id,action})});msg('Виконано');await load()}catch(e){msg(e.message,'error')}}
-async function works(){const a=await api('/api/admin/works');$('content').innerHTML=`<article class="card"><div class="title">➕ Додати роботу</div><div class="muted" style="margin:7px 0 15px">Поки що фото додаються URL-адресою. Пізніше можна підключити Cloudflare R2 для завантаження файлів.</div><div class="grid"><input class="input" id="wTitle" placeholder="Назва, наприклад: Заміна ГРМ"><input class="input" id="wCar" placeholder="Автомобіль"><input class="input" id="wImage" placeholder="URL фото"><input class="input" id="wIg" placeholder="Посилання на Instagram, необов'язково"></div><textarea class="textarea" id="wDesc" placeholder="Що зробили"></textarea><div class="form-actions" style="margin-top:10px"><button class="btn primary" onclick="addWork()">Додати роботу</button></div></article>`+(a.length?a.map(w=>`<article class="card work"><img src="${esc(w.image_url)}" alt="${esc(w.title)}"><div><div class="title">${esc(w.title)}</div>${w.car?`<div class="meta">🚗 ${esc(w.car)}</div>`:''}<div class="text">${esc(w.description)}</div>${w.instagram_url?`<div class="meta"><a href="${esc(w.instagram_url)}" target="_blank" style="color:var(--accent)">Instagram →</a></div>`:''}<div class="actions"><button class="btn red" onclick="deleteWork(${w.id})">Видалити</button></div></div></article>`).join(''):'<div class="empty">Поки що робіт немає.</div>')}
-async function addWork(){try{const b={title:$('wTitle').value.trim(),car:$('wCar').value.trim(),image_url:$('wImage').value.trim(),instagram_url:$('wIg').value.trim(),description:$('wDesc').value.trim()};await api('/api/admin/works',{method:'POST',body:JSON.stringify(b)});msg('Роботу додано');await load()}catch(e){msg(e.message,'error')}}
-async function deleteWork(id){if(!confirm('Видалити цю роботу?'))return;try{await api('/api/admin/works?id='+id,{method:'DELETE'});msg('Роботу видалено');await load()}catch(e){msg(e.message,'error')}}
-async function logs(){if(role!=='superadmin'){$('content').innerHTML='<div class="empty">🔒 Журнал дій доступний тільки супер адміну.</div>';return}const a=await api('/api/admin/logs');$('content').innerHTML=`<article class="card"><div class="title">📋 Журнал дій</div><div class="meta">Тут видно адміністративні дії. Це не Cloudflare Tail Logs, а журнал операцій сайту.</div><div class="actions" style="margin-top:12px"><button class="btn red" onclick="clearLogs()">🗑 Очистити журнал</button><button class="btn gray" onclick="cleanupLogs()">Очистити старі, залишити 100</button></div></article>`+(a.length?a.map(x=>`<article class="card log"><b>${esc(x.created_at)}</b> · <b>${esc(x.actor)}</b> · ${esc(x.action)}<br>Ціль: ${esc(x.target)}<br>${esc(x.details)}</article>`).join(''):'<div class="empty">Журнал порожній.</div>')}
-async function clearLogs(){if(!confirm('Очистити журнал дій назавжди?'))return;try{await api('/api/admin/logs',{method:'DELETE'});msg('Журнал очищено');await load()}catch(e){msg(e.message,'error')}}
-async function cleanupLogs(){try{await api('/api/admin/cleanup',{method:'POST',body:JSON.stringify({what:'old_logs'})});msg('Старі записи очищено');await load()}catch(e){msg(e.message,'error')}}
-$('refresh').onclick=load;$('logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/'};
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{currentTab=b.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));load()});
-boot();
-</script>
-</body>
-</html>
+<section class="section" style="padding-left:0;padding-right:0">
+<h2>Записи</h2><div id="bookings" class="cards"></div>
+</section>
+<section class="section" style="padding-left:0;padding-right:0">
+<h2>Додати блокування часу</h2>
+<form id="blockForm" class="form"><input type="date" name="date" required><input type="time" name="time" required><input name="reason" placeholder="Причина"><button class="btn primary">Заблокувати</button><p id="blockMsg"></p></form>
+</section>
+</div></main>
+<script src="/admin.js"></script>
+</body></html>

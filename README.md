@@ -1,27 +1,35 @@
-# Механік Полтава
+# Механік Полтава — сайт СТО
 
-Повна версія сайту автосервісу з:
-- відгуками з модерацією;
+Готовий каркас сайту СТО з:
+- головною сторінкою;
+- 4 основними послугами;
+- календарем доступності;
 - онлайн-записом;
+- клієнтськими заявками;
 - адмін-панеллю;
-- D1.
+- реальним збереженням через Cloudflare D1;
+- API на Cloudflare Workers.
 
-## Файли
-- `index.html` — сайт
-- `admin.html` — адмінка
-- `worker.js` — API Worker
-- `schema.sql` — таблиці D1
-- `wrangler.toml` — Cloudflare Assets
-- `images/logo.png` — логотип
+## Запуск
 
-## Cloudflare
-У Worker має бути:
-- Assets binding: `ASSETS`
-- D1 binding: `DB` → `mehanik-reviews`
-- Secret: `ADMIN_PASSWORD`
-
-## D1
-Якщо таблиця `bookings` ще не створена, виконай `schema.sql` у D1 Console. Існуюча таблиця `reviews` не видаляється.
+1. Встановити Node.js.
+2. Встановити Wrangler:
+   `npm install`
+3. Створити D1 базу:
+   `npx wrangler d1 create mehanik-db`
+4. Вставити отриманий `database_id` у `wrangler.toml`.
+5. Створити таблиці:
+   `npx wrangler d1 execute mehanik-db --remote --file=schema.sql`
+6. Запустити локально:
+   `npm run dev`
+7. Деплой:
+   `npm run deploy`
 
 ## Важливо
-Не зберігай пароль адміністратора в GitHub. Файл `Passwordd` навмисно не включений у ZIP.
+
+У `worker.js` потрібно змінити ADMIN_PASSWORD перед публічним запуском.
+Для продакшену пароль краще винести в Cloudflare Secret:
+
+`npx wrangler secret put ADMIN_PASSWORD`
+
+Також перевірити адресу, графік, телефон та посилання Instagram у `config.js`.
