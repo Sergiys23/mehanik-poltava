@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Адмін — Механік Полтава</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header class="header"><a class="logo" href="/">МЕХАНІК <span>АДМІН</span></a><a href="/">← На сайт</a></header>
+<main class="section">
+<div id="login" class="form"><h2>Вхід адміністратора</h2><input id="password" type="password" placeholder="Пароль"><button class="btn primary" id="loginBtn">Увійти</button><p id="loginMsg"></p></div>
+<div id="panel" class="hidden">
+<div class="section-head"><p class="eyebrow">ПАНЕЛЬ КЕРУВАННЯ</p><h1>Календар та заявки</h1></div>
+<div class="cards three">
+  <div class="card"><h3>Нові заявки</h3><strong id="pendingCount">0</strong></div>
+  <div class="card"><h3>Підтверджені</h3><strong id="confirmedCount">0</strong></div>
+  <div class="card"><h3>Всього</h3><strong id="totalCount">0</strong></div>
+</div>
+<section class="section" style="padding-left:0;padding-right:0">
+<h2>Записи</h2><div id="bookings" class="cards"></div>
+</section>
+<section class="section" style="padding-left:0;padding-right:0">
+<h2>Додати блокування часу</h2>
+<form id="blockForm" class="form"><input type="date" name="date" required><input type="time" name="time" required><input name="reason" placeholder="Причина"><button class="btn primary">Заблокувати</button><p id="blockMsg"></p></form>
+</section>
+</div></main>
+<script src="/admin.js"></script>
+</body></html>
