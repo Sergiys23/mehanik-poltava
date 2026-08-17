@@ -94,6 +94,7 @@ async function requireSuperadmin(request, env) {
 async function ensureTables(db) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS booking_telegram (booking_id INTEGER PRIMARY KEY, message_id INTEGER NOT NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS review_telegram (review_id INTEGER PRIMARY KEY, message_id INTEGER NOT NULL)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS booking_history (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
@@ -281,9 +282,13 @@ export default {
           const text = String(body.text || "").trim();
           const rating = Number(body.rating);
           if (name.length > 60 || !text || text.length > 1000 || !Number.isInteger(rating) || rating < 1 || rating > 5) return json({ error: "Некоректні дані" }, 400);
-          await env.DB.prepare(`INSERT INTO reviews(name,rating,text,approved) VALUES(?1,?2,?3,0)`).bind(name,rating,text).run();
-          const row = await env.DB.prepare(`SELECT id FROM reviews ORDER BY id DESC LIMIT 1`).first();
-          await notifyNewReview(env,{id:row?.id||"?",name,rating,text});
+          const result = await env.DB.prepare(`INSERT INTO reviews(name,rating,text,approved) VALUES(?1,?2,?3,0)`).bind(name,rating,text).run();
+          const id = Number(result.meta?.last_row_id);
+          const tg = await notifyNewReview(env,{id:id || "?",name,rating,text});
+          const messageId = tg?.result?.message_id;
+          if (messageId && Number.isInteger(id) && id > 0) {
+            await env.DB.prepare(`INSERT OR REPLACE INTO review_telegram(review_id,message_id) VALUES(?1,?2)`).bind(id,Number(messageId)).run();
+          }
           return json({ok:true,message:"Дякуємо! Ваш відгук надіслано на модерацію."},201);
         } catch(e){ console.error(e); return json({error:"Помилка сервера"},500); }
       }
@@ -355,7 +360,23 @@ export default {
         if(request.method==="POST"){
           const body=await request.json(),id=Number(body.id),action=String(body.action||"");if(!Number.isInteger(id)||id<=0)return json({error:"Невірний ID"},400);
           if(action==="approve"||action==="hide"){await env.DB.prepare(`UPDATE reviews SET approved=?1 WHERE id=?2`).bind(action==="approve"?1:0,id).run();await audit(env.DB,actor,action,`review:${id}`,"");return json({ok:true,message:action==="approve"?"Відгук опубліковано":"Відгук приховано"})}
-          if(action==="delete"){await env.DB.prepare(`DELETE FROM reviews WHERE id=?1`).bind(id).run();await audit(env.DB,actor,"delete_review",`review:${id}`,"");return json({ok:true,message:"Відгук видалено"})}
+          if(action==="delete"){
+            const review = await env.DB.prepare(`SELECT id FROM reviews WHERE id=?1`).bind(id).first();
+            if (!review) return json({error:"Відгук не знайдено"},404);
+            const tg = await env.DB.prepare(`SELECT message_id FROM review_telegram WHERE review_id=?1`).bind(id).first();
+            let telegramDeleted = true;
+            if (tg?.message_id) {
+              const tgResult = await deleteTelegramMessage(env,tg.message_id);
+              telegramDeleted = !!tgResult?.ok;
+              if (!telegramDeleted) console.warn("Не вдалося видалити відгук з Telegram",tgResult?.error || tgResult);
+            }
+            await env.DB.batch([
+              env.DB.prepare(`DELETE FROM review_telegram WHERE review_id=?1`).bind(id),
+              env.DB.prepare(`DELETE FROM reviews WHERE id=?1`).bind(id)
+            ]);
+            await audit(env.DB,actor,"delete_review",`review:${id}`,telegramDeleted?"Відгук видалено з сайту та Telegram":"Відгук видалено з сайту; Telegram-повідомлення не видалено");
+            return json({ok:true,telegram_deleted:telegramDeleted,message:telegramDeleted?"Відгук видалено з сайту та Telegram":"Відгук видалено з сайту; Telegram-повідомлення не вдалося видалити"});
+          }
           return json({error:"Невідома дія"},400);
         }
       }
