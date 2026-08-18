@@ -9,5 +9,5 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "mehanik-db"
-database_id = "PUT_YOUR_D1_DATABASE_ID_HERE"
+database_id = "2b6cab29-e36a-4357-88a4-2605a9e87fbc"
 migrations_dir = "migrations"
