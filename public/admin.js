@@ -1,0 +1,52 @@
+let role="",tab="bookings";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+async function api(u,o={}){const r=await fetch(u,{...o,credentials:"same-origin",headers:{"content-type":"application/json",...(o.headers||{})}}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||`HTTP ${r.status}`);return d}
+function msg(t,e=false){$("#msg").innerHTML=`<div class="message ${e?"error":"success"}">${esc(t)}</div>`}
+async function login(){try{const d=await api("/api/auth/login",{method:"POST",body:JSON.stringify({username:$("#loginUser").value.trim(),password:$("#loginPass").value})});role=d.role;$("#role").textContent=role;$("#login").classList.add("hidden");$("#panel").classList.remove("hidden");load()}catch(e){$("#loginMsg").textContent="❌ "+e.message}}
+async function load(){try{const u={"/bookings":"/api/admin/bookings","/history":"/api/admin/history","/reviews":"/api/admin/reviews","/works":"/api/admin/works","/logs":"/api/admin/logs","/blocks":"/api/admin/blocks"};({bookings:renderBookings,history:renderHistory,reviews:renderReviews,works:renderWorks,logs:renderLogs,blocks:renderBlocks}[tab])(await api(u["/"+tab]))}catch(e){msg(e.message,true)}}
+
+function renderBookings(a){
+ $("#content").innerHTML=`<div class="admin-list">${a.length?a.map(b=>{
+   const agreed=b.time&&/^\d{2}:\d{2}$/.test(b.time);
+   return `<article class="admin-card">
+    <h3>#${b.id} · ${esc(b.name)}</h3>
+    <p>📞 ${esc(b.phone)}<br>🚗 ${esc(b.car)}<br>🔧 ${esc(b.service)}<br>📅 ${esc(b.date)}<br>🕐 ${agreed?esc(b.time):"<b>Не узгоджено</b>"}</p>
+    <p>${esc(b.note||"")}</p>
+    <b>${esc(b.status)}</b>
+    ${b.status==="new"?`
+      <div class="admin-actions">
+        <input id="time-${b.id}" type="time" step="1800" style="min-width:130px">
+        <button class="btn primary" onclick="setTime(${b.id})">🕐 Узгодити час</button>
+      </div>`:""}
+    <div class="admin-actions">
+      ${b.status==="confirmed"?`<button class="btn primary" onclick="act(${b.id},'complete')">✔ Виконано</button>`:""}
+      ${b.status!=="cancelled"?`<button class="btn secondary" onclick="act(${b.id},'cancel')">Скасувати</button>`:`<button class="btn secondary" onclick="act(${b.id},'reopen')">Повернути</button>`}
+      <a class="btn primary" href="tel:${esc(b.phone)}">📞 Дзвінок</a>
+      <button class="btn danger" onclick="act(${b.id},'archive')">🗑 В архів</button>
+    </div>
+   </article>`
+ }).join(""):"<div class='admin-card'>Заявок немає.</div>"}</div>`
+}
+
+async function setTime(id){
+ const time=$(`#time-${id}`)?.value;
+ if(!time){msg("Оберіть узгоджений час.",true);return}
+ try{const d=await api("/api/admin/bookings",{method:"POST",body:JSON.stringify({id,action:"set_time",time})});msg(d.message);load()}catch(e){msg(e.message,true)}
+}
+async function act(id,action){
+ if(action==="archive"&&!confirm("Перемістити в архів? Telegram-повідомлення також буде видалено."))return;
+ try{const d=await api("/api/admin/bookings",{method:"POST",body:JSON.stringify({id,action})});msg(d.message);load()}catch(e){msg(e.message,true)}
+}
+function renderHistory(a){$("#content").innerHTML=`<div class="admin-actions"><button class="btn danger" ${role!=="superadmin"?"disabled":""} onclick="clearHistory()">🗑 Очистити архів</button></div><div class="admin-list">${a.length?a.map(x=>`<article class="admin-card"><h3>#${x.id} · ${esc(x.name)}</h3><p>🚗 ${esc(x.car)} · 🔧 ${esc(x.service)}<br>📅 ${esc(x.date)} ${esc(x.time)}<br>Архівовано: ${esc(x.archived_at)}</p></article>`).join(""):"<div class='admin-card'>Архів порожній.</div>"}</div>`}
+async function clearHistory(){if(role!=="superadmin"||!confirm("Очистити архів?"))return;try{const d=await api("/api/admin/history",{method:"DELETE"});msg(d.message);load()}catch(e){msg(e.message,true)}}
+function renderReviews(a){$("#content").innerHTML=`<div class="admin-list">${a.length?a.map(r=>`<article class="admin-card"><h3>${esc(r.name)} · ${"★".repeat(r.rating)}${"☆".repeat(5-r.rating)}</h3><p>${esc(r.text)}</p><b>${r.published?"Опубліковано":"На модерації"}</b><div class="admin-actions">${r.published?`<button class="btn secondary" onclick="review(${r.id},'hide')">Приховати</button>`:`<button class="btn primary" onclick="review(${r.id},'approve')">Опублікувати</button>`}<button class="btn danger" onclick="review(${r.id},'delete')">🗑 Видалити з сайту і Telegram</button></div></article>`).join(""):"<div class='admin-card'>Відгуків немає.</div>"}</div>`}
+async function review(id,action){if(action==="delete"&&!confirm("Видалити відгук із сайту та Telegram?"))return;try{const d=await api("/api/admin/reviews",{method:"POST",body:JSON.stringify({id,action})});msg(d.message);load()}catch(e){msg(e.message,true)}}
+function renderWorks(a){$("#content").innerHTML=`<form id="workForm" class="form admin-form"><h2>Додати виконану роботу</h2><input name="title" placeholder="Назва роботи" required><input name="car" placeholder="Автомобіль"><input name="image_url" placeholder="URL фото" required><input name="instagram_url" placeholder="Instagram (необов'язково)"><textarea name="description" placeholder="Опис роботи"></textarea><button class="btn primary">Додати</button></form><div class="admin-list">${a.length?a.map(w=>`<article class="admin-card work-admin"><img class="work-admin-img" src="${esc(w.image_url)}"><div><h3>${esc(w.title)}</h3><p>🚗 ${esc(w.car||"")}<br>${esc(w.description||"")}</p><button class="btn danger" onclick="workDelete(${w.id})">🗑 Видалити</button></div></article>`).join(""):"<div class='admin-card'>Робіт немає.</div>"}</div>`;$("#workForm").onsubmit=async e=>{e.preventDefault();try{const d=Object.fromEntries(new FormData(e.target)),r=await api("/api/admin/works",{method:"POST",body:JSON.stringify(d)});msg(r.message);load()}catch(x){msg(x.message,true)}}}
+async function workDelete(id){if(!confirm("Видалити роботу?"))return;try{const d=await api("/api/admin/works?id="+id,{method:"DELETE"});msg(d.message);load()}catch(e){msg(e.message,true)}}
+function renderLogs(a){$("#content").innerHTML=`<div class="admin-actions"><button class="btn danger" ${role!=="superadmin"?"disabled":""} onclick="clearLogs()">🗑 Очистити журнал</button></div><div class="admin-card">${a.map(x=>`<div class="log-row">${esc(x.created_at)} · <b>${esc(x.actor)}</b> · ${esc(x.action)} · ${esc(x.target)} · ${esc(x.details)}</div>`).join("")||"Журнал порожній."}</div>`}
+async function clearLogs(){if(role!=="superadmin"||!confirm("Очистити журнал?"))return;try{const d=await api("/api/admin/logs",{method:"DELETE"});msg(d.message);load()}catch(e){msg(e.message,true)}}
+function renderBlocks(a){$("#content").innerHTML=`<form id="blockForm" class="form admin-form"><h2>Заблокувати час</h2><input type="date" name="date" required><input type="time" name="time" step="1800" required><input name="reason" placeholder="Причина"><button class="btn primary">Заблокувати</button></form><div class="admin-list">${a.map(x=>`<article class="admin-card">${esc(x.date)} · ${esc(x.time)} · ${esc(x.reason||"")} <button class="btn danger" onclick="blockDelete(${x.id})">Видалити</button></article>`).join("")}</div>`;$("#blockForm").onsubmit=async e=>{e.preventDefault();try{const d=Object.fromEntries(new FormData(e.target)),r=await api("/api/admin/blocks",{method:"POST",body:JSON.stringify(d)});msg(r.message);load()}catch(x){msg(x.message,true)}}}
+async function blockDelete(id){try{const d=await api("/api/admin/blocks?id="+id,{method:"DELETE"});msg(d.message);load()}catch(e){msg(e.message,true)}}
+document.querySelectorAll(".admin-tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll(".admin-tabs button").forEach(x=>x.classList.toggle("active",x===b));load()});
+$("#loginBtn").onclick=login;$("#loginPass").onkeydown=e=>{if(e.key==="Enter")login()};$("#refresh").onclick=load;$("#logout").onclick=async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()};
