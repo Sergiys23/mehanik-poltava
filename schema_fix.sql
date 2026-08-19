@@ -1,0 +1,15 @@
+-- Safe compatibility migration for the existing D1 database.
+ALTER TABLE bookings ADD COLUMN preferred_date TEXT;
+ALTER TABLE bookings ADD COLUMN preferred_time TEXT;
+ALTER TABLE bookings ADD COLUMN comment TEXT DEFAULT '';
+ALTER TABLE bookings ADD COLUMN client_type TEXT DEFAULT 'regular';
+ALTER TABLE reviews ADD COLUMN approved INTEGER DEFAULT 0;
+ALTER TABLE works ADD COLUMN car TEXT DEFAULT '';
+ALTER TABLE works ADD COLUMN instagram_url TEXT DEFAULT '';
+CREATE TABLE IF NOT EXISTS service_catalog(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE NOT NULL,description TEXT DEFAULT '',price_from REAL,duration_minutes INTEGER NOT NULL DEFAULT 60,active INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS mechanics(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,role TEXT DEFAULT 'mechanic',active INTEGER NOT NULL DEFAULT 1,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS booking_mechanics(booking_id INTEGER PRIMARY KEY,mechanic_id INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS admin_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT,action TEXT,target TEXT,details TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS booking_history(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,car TEXT,service TEXT,preferred_date TEXT,preferred_time TEXT,comment TEXT,status TEXT,created_at TEXT,archived_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS booking_telegram(booking_id INTEGER PRIMARY KEY,message_id INTEGER);
+CREATE TABLE IF NOT EXISTS review_telegram(review_id INTEGER PRIMARY KEY,message_id INTEGER);

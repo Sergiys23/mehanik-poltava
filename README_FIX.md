@@ -1,11 +1,13 @@
-# Fix package for Sergiys23/mehanik-poltava
+# Механік Полтава — FIX
 
-The GitHub connector currently allows reading this repository but rejects write operations with HTTP 403, so these replacement files must be copied into the repository manually.
+Замінити у репозиторії:
+- worker.js
+- public/index.html
+- public/app.js
+- public/admin.html
+- public/admin.js
+- public/style.css
 
-1. Replace `worker.js`, `app.js`, `index.html`, `admin.js` with the files here.
-2. Add `migrations/0002_duration.sql`.
-3. Delete the public `Passwordd` file from GitHub and change the exposed admin password.
-4. Configure Cloudflare secrets:
-   - ADMIN_PASSWORD
-   - ADMIN_SESSION_SECRET
-5. Apply the migration to an existing D1 database.
+Цей пакет виправляє: public API послуг, вибір послуги, приховування Uklon/Bolt з публічного сайту, адмінський тип клієнта Uklon/Bolt, 3 механіків, довільний час HH:MM з кроком 1 хвилина, 60 хв буфер між роботами одного механіка, ціни та норми часу в superadmin, блокування часу та новий екран входу адміна поверх логотипа.
+
+Uklon / Bolt залишається в каталозі для адміністратора, але за замовчуванням неактивний для публічного запису.
