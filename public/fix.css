@@ -1,0 +1,14 @@
+/* Critical UI fixes */
+.header .logo{display:flex;align-items:center;gap:10px;min-width:210px}
+.header .logo img{width:52px;height:52px;max-width:52px;object-fit:contain;display:block}
+.header .logo span{display:flex;flex-direction:column}
+.header .logo small{letter-spacing:3px;color:#aaa}
+.hero-card img{display:block;width:100%;height:260px;max-width:100%;object-fit:contain}
+.admin-login-backdrop{display:none!important}
+.admin-back-global{position:fixed;top:16px;left:16px;z-index:100;display:inline-flex;align-items:center;padding:11px 16px;border:1px solid #343a3f;border-radius:10px;background:#171c20ee;color:#fff;font-weight:800;backdrop-filter:blur(8px)}
+.admin-login-screen{min-height:100vh;display:grid;place-items:center;padding:70px 0 30px}
+.admin-login-card{width:min(92vw,420px);padding:30px;background:rgba(15,18,20,.97);border:1px solid #454d53;border-radius:22px;box-shadow:0 24px 80px rgba(0,0,0,.65)}
+.admin-login-card input{width:100%;padding:14px 15px;margin:7px 0;background:#0b0e10;border:1px solid #343b40;border-radius:10px;color:#fff}
+.admin-login-card .btn{margin-top:8px}
+.admin-top-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media(max-width:600px){.header .logo{min-width:auto}.header .logo img{width:48px;height:48px;max-width:48px}.admin-back-global{top:10px;left:10px;padding:9px 12px;font-size:14px}.admin-login-screen{padding:60px 0 20px}.admin-login-card{padding:24px}.admin-top-actions{width:100%}.admin-top-actions .btn{flex:1;min-width:120px}}

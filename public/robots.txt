@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /api/
+Sitemap: https://mehanik.mehanik.workers.dev/sitemap.xml
