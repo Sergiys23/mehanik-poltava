@@ -1,15 +1,18 @@
-Механік Полтава — виправлення запису без вибору часу
+MEHANIK POLTAVA V2 FOUNDATION
 
-ЗАМІНИТИ:
-1. worker.js -> корінь репозиторію
-2. public/admin.js -> public/admin.js
+Логіка:
+- Пн-Сб 09:00-18:00.
+- Клієнт вибирає послугу і день, але НЕ час.
+- Адмін вибирає механіка і довільний час HH:MM.
+- У системі 3 механіки: головний + 2 механіки.
+- Мінімальний буфер між роботами одного механіка: 60 хв.
+- Uklon і Bolt рахуються як одна категорія Uklon.
+- Ціни та норми часу редагуються тільки superadmin.
 
-public/app.js у поточній версії вже приховує вибір часу для клієнта.
+Перед деплоєм:
+1. У Cloudflare D1 мають існувати старі таблиці bookings, booking_telegram, reviews, review_telegram, works, booking_history, admin_logs.
+2. Виконати schema.sql для нових таблиць.
+3. Додати ADMIN_PASSWORD, SUPERADMIN_PASSWORD, SESSION_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
+4. Замінити public/images/logo.png і public/images/mechanic.png реальними зображеннями СТО.
 
-Нова логіка:
-Клієнт: послуга -> день -> дані -> заявка.
-Telegram: заявка приходить з "Час: Узгоджується з майстром".
-Адмін: вводить узгоджений час -> "Узгодити час".
-Після цього час записується в D1, статус стає confirmed, а Telegram-повідомлення оновлюється конкретним часом.
-
-ВАЖЛИВО: worker.js має бути саме той, що лежить у цьому ZIP.
+Це перший пакет архітектури. Перед заміною production worker треба звірити існуючі Cloudflare bindings/wrangler.toml.
