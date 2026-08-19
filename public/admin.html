@@ -1,1 +1,56 @@
-<!doctype html><html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Механік — Адмін</title><link rel="stylesheet" href="/style.css"></head><body><header id="adminHeader" class="header hidden"><a class="logo-wrap" href="/"><img class="site-logo" src="/images/logo.png" alt="Механік"><span class="logo-text"><b>МЕХАНІК</b><small>АДМІН</small></span></a><a href="/">← На сайт</a></header><main class="admin-wrap"><section id="login" class="admin-login-screen"><div class="admin-login-backdrop"><img src="/images/logo.png" alt="Механік"></div><div class="admin-login-card"><p class="eyebrow">МЕХАНІК • ПОЛТАВА</p><h1>Вхід до кабінету</h1><p class="login-subtitle">Адміністратор або superadmin</p><input id="loginUser" placeholder="Логін" autocomplete="username"><input id="loginPass" type="password" placeholder="Пароль" autocomplete="current-password"><button id="loginBtn" class="btn primary full">Увійти</button><p id="loginMsg"></p></div></section><section id="panel" class="hidden"><div class="admin-top"><div><p class="eyebrow">ПАНЕЛЬ КЕРУВАННЯ</p><h1>Механік Полтава</h1><div>Роль: <b id="role"></b></div></div><div><button id="refresh" class="btn secondary">🔄 Оновити</button><button id="logout" class="btn secondary">Вийти</button></div></div><nav class="admin-tabs"><button class="btn active" data-tab="bookings">📅 Заявки</button><button class="btn" data-tab="history">🗂 Архів</button><button class="btn" data-tab="reviews">⭐ Відгуки</button><button class="btn" data-tab="works">🔧 Роботи</button><button class="btn" data-tab="services">💰 Послуги / ціни</button><button class="btn" data-tab="mechanics">👨‍🔧 Механіки</button><button class="btn" data-tab="blocks">⛔ Блокування</button><button class="btn" data-tab="logs">📋 Журнал</button></nav><div id="msg"></div><div id="content"></div></section></main><script src="/admin.js"></script></body></html>
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Механік — Адмін</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="admin-wrap admin-page">
+<a class="admin-back-global" href="/">← На головну</a>
+
+<section id="login" class="admin-login-screen">
+  <div class="admin-login-card">
+    <p class="eyebrow">МЕХАНІК • ПОЛТАВА</p>
+    <h1>Вхід до кабінету</h1>
+    <p class="login-subtitle">Адміністратор або superadmin</p>
+    <input id="loginUser" placeholder="Логін" autocomplete="username">
+    <input id="loginPass" type="password" placeholder="Пароль" autocomplete="current-password">
+    <button id="loginBtn" class="btn primary full">Увійти</button>
+    <p id="loginMsg"></p>
+  </div>
+</section>
+
+<section id="panel" class="hidden">
+  <div class="admin-top">
+    <div>
+      <p class="eyebrow">ПАНЕЛЬ КЕРУВАННЯ</p>
+      <h1>Механік Полтава</h1>
+      <div>Роль: <b id="role"></b></div>
+    </div>
+    <div class="admin-top-actions">
+      <a class="btn secondary" href="/">← На головну</a>
+      <button id="refresh" class="btn secondary">🔄 Оновити</button>
+      <button id="logout" class="btn secondary">Вийти</button>
+    </div>
+  </div>
+
+  <nav class="admin-tabs">
+    <button class="btn active" data-tab="bookings">📅 Заявки</button>
+    <button class="btn" data-tab="history">🗂 Архів</button>
+    <button class="btn" data-tab="reviews">⭐ Відгуки</button>
+    <button class="btn" data-tab="works">🔧 Роботи</button>
+    <button class="btn" data-tab="services">💰 Послуги / ціни</button>
+    <button class="btn" data-tab="mechanics">👨‍🔧 Механіки</button>
+    <button class="btn" data-tab="blocks">⛔ Блокування</button>
+    <button class="btn" data-tab="logs">📋 Журнал</button>
+  </nav>
+
+  <div id="msg"></div>
+  <div id="content"></div>
+</section>
+</main>
+<script src="/admin.js"></script>
+</body>
+</html>
