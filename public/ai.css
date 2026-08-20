@@ -1,0 +1,25 @@
+
+.ai-assistant {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid rgba(255, 196, 0, .35);
+  border-radius: 18px;
+  background: #11151a;
+}
+.ai-assistant textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.ai-assistant button {
+  margin-top: 10px;
+}
+#ai-assistant-output {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #181d23;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
