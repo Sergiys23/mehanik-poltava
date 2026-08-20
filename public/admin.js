@@ -15,8 +15,59 @@ function renderHistory(a){$("#content").innerHTML=`<div class="admin-actions"><b
 async function clearHistory(){if(role!=="superadmin"||!confirm("Очистити архів?"))return;try{const d=await api("/api/admin/history",{method:"DELETE"});msg(d.message);load()}catch(e){msg(e.message,true)}}
 function renderReviews(a){$("#content").innerHTML=`<div class="admin-list">${a.length?a.map(r=>`<article class="admin-card"><h3>${esc(r.name)} · ${"★".repeat(r.rating)}${"☆".repeat(5-r.rating)}</h3><p>${esc(r.text)}</p><b>${r.published?"Опубліковано":"На модерації"}</b><div class="admin-actions">${r.published?`<button class="btn secondary" onclick="review(${r.id},'hide')">Приховати</button>`:`<button class="btn primary" onclick="review(${r.id},'approve')">Опублікувати</button>`}<button class="btn danger" onclick="review(${r.id},'delete')">🗑 Видалити</button></div></article>`).join(""):"<div class='admin-card'>Відгуків немає.</div>"}</div>`}
 async function review(id,action){if(action==="delete"&&!confirm("Видалити відгук?"))return;try{const d=await api("/api/admin/reviews",{method:"POST",body:JSON.stringify({id,action})});msg(d.message);load()}catch(e){msg(e.message,true)}}
-function renderWorks(a){$("#content").innerHTML=`<form id="workForm" class="form admin-form"><h2>📸 Додати виконану роботу</h2><input name="title" placeholder="Назва роботи" required><input name="car" placeholder="Автомобіль"><select name="media_type"><option value="image">📷 Фото</option><option value="video">🎥 Відео</option></select><input name="media_url" placeholder="URL фото або відео (.mp4/.webm/YouTube)" required><input name="instagram_url" placeholder="Instagram цієї роботи (необов'язково)"><textarea name="description" placeholder="Опис роботи"></textarea><button class="btn primary">Додати роботу</button></form><div class="admin-list">${a.length?a.map(w=>`<article class="admin-card work-admin"><div class="work-admin-media">${w.media_type==="video"?`<video class="work-admin-img" src="${esc(w.media_url)}" controls preload="metadata"></video>`:`<img class="work-admin-img" src="${esc(w.media_url||w.image_url)}" alt="${esc(w.title)}">`}</div><div><h3>${esc(w.title)}</h3><p>🚗 ${esc(w.car||"")}<br>${esc(w.description||"")}</p>${w.instagram_url?`<a class="btn secondary" href="${esc(w.instagram_url)}" target="_blank" rel="noopener noreferrer">📷 Instagram</a>`:""} <button class="btn danger" onclick="workDelete(${w.id})">🗑 Видалити</button></div></article>`).join(""):"<div class='admin-card'>Робіт немає.</div>"}</div>`;$("#workForm").onsubmit=async e=>{e.preventDefault();try{const d=Object.fromEntries(new FormData(e.target)),r=await api("/api/admin/works",{method:"POST",body:JSON.stringify(d)});msg(r.message);load()}catch(x){msg(x.message,true)}}}
-async function workDelete(id){if(!confirm("Видалити роботу?"))return;try{const d=await api("/api/admin/works?id="+id,{method:"DELETE"});msg(d.message);load()}catch(e){msg(e.message,true)}}
+function renderWorks(a){
+ const list=a||[];
+ $("#content").innerHTML=`
+ <div class="card admin-media-box">
+   <h2>🔧 Додати виконану роботу</h2>
+   <form id="workForm" class="form">
+     <input name="title" placeholder="Назва роботи" required>
+     <input name="car" placeholder="Автомобіль">
+     <textarea name="description" placeholder="Опис роботи"></textarea>
+     <label>Джерело медіа
+       <select id="mediaType" name="media_type">
+         <option value="upload">📤 Завантаження через адмінку</option>
+         <option value="youtube">▶️ YouTube</option>
+         <option value="instagram">📸 Instagram</option>
+       </select>
+     </label>
+     <div id="mediaUploadBox"><input name="media_url" type="file" accept="image/*,video/mp4,video/webm"></div>
+     <div id="mediaUrlBox" class="hidden"><input name="media_url_text" placeholder="Вставте посилання"></div>
+     <input name="thumbnail_url" placeholder="URL обкладинки для відео (необов'язково)">
+     <button class="btn primary">Додати роботу</button>
+     <p id="workMessage"></p>
+   </form>
+ </div>
+ <div class="cards three">
+ ${list.map(w=>`<article class="card">
+   <div class="work-image">${w.media_type==="youtube"?`<iframe src="${esc(w.embed_url||w.media_url)}" title="${esc(w.title)}" loading="lazy" allowfullscreen></iframe>`:
+     w.media_type==="instagram"?`<a class="media-link" href="${esc(w.media_url||w.instagram_url)}" target="_blank" rel="noopener">📸 Відкрити Instagram</a>`:
+     w.media_url?`<img src="${esc(w.media_url||w.image_url)}" alt="${esc(w.title)}" loading="lazy">`:"🔧"}</div>
+   <h3>${esc(w.title)}</h3><p>${esc(w.car||"")}</p><p>${esc(w.description||"")}</p>
+ </article>`).join("")}
+ </div>`;
+ const type=$("#mediaType"), ub=$("#mediaUploadBox"), urlb=$("#mediaUrlBox");
+ type.onchange=()=>{const isUpload=type.value==="upload";ub.classList.toggle("hidden",!isUpload);urlb.classList.toggle("hidden",isUpload)};
+ $("#workForm").onsubmit=async e=>{
+   e.preventDefault();
+   const f=e.target, d=Object.fromEntries(new FormData(f));
+   d.media_type=type.value;
+   if(d.media_type==="upload"){
+     const file=f.querySelector('[name="media_url"]').files[0];
+     if(!file){$("#workMessage").textContent="❌ Виберіть фото або відео.";return}
+     const max=file.type.startsWith("video/")?100*1024*1024:10*1024*1024;
+     if(file.size>max){$("#workMessage").textContent=`❌ Файл завеликий. Ліміт ${file.type.startsWith("video/")?"100":"10"} МБ.`;return}
+     $("#workMessage").textContent="Завантаження...";
+     const fd=new FormData(); fd.append("file",file); fd.append("title",d.title); fd.append("car",d.car||""); fd.append("description",d.description||"");
+     try{
+       const r=await fetch("/api/admin/media-upload",{method:"POST",body:fd,credentials:"same-origin"});
+       const j=await r.json(); if(!r.ok)throw Error(j.error||"Не вдалося завантажити файл");
+       d.media_url=j.url;
+     }catch(x){$("#workMessage").textContent="❌ "+x.message;return}
+   }else d.media_url=d.media_url_text;
+   try{const r=await api("/api/admin/works",{method:"POST",body:JSON.stringify(d)});msg(r.message);load()}catch(x){$("#workMessage").textContent="❌ "+x.message}
+ };
+}
 function renderServices(a){const rows=a.filter(x=>x.name!=="Uklon");$("#content").innerHTML=`<div class="admin-card"><h2>💰 Послуги та ціни</h2><p class="muted">Uklon прихований від клієнта. Тут задається тривалість роботи, яка використовується таймером механіка.</p></div><div class="admin-list">${rows.map(s=>`<article class="admin-card"><form class="service-form" data-id="${s.id}"><h3>🔧 ${esc(s.name)}</h3><input name="name" value="${esc(s.name)}" required><input name="description" value="${esc(s.description||"")}" placeholder="Опис"><input name="price_from" type="number" min="0" step="1" value="${s.price_from??""}" placeholder="Ціна від, грн" ${role!=="superadmin"?"disabled":""}><label>⏱ Норма роботи, хв<input name="duration_minutes" type="number" min="15" max="1440" step="15" value="${s.duration_minutes}" ${role!=="superadmin"?"disabled":""}></label><label><input name="active" type="checkbox" ${s.active?"checked":""} ${role!=="superadmin"?"disabled":""}> Активна</label>${role==="superadmin"?`<button class="btn primary">💾 Зберегти</button>`:`<p class="muted">Перегляд для admin</p>`}</form></article>`).join("")}</div>`;document.querySelectorAll(".service-form").forEach(f=>f.onsubmit=async e=>{e.preventDefault();if(role!=="superadmin")return;const d=Object.fromEntries(new FormData(f));d.id=Number(f.dataset.id);d.active=f.querySelector('[name=active]').checked;try{const r=await api("/api/admin/services",{method:"POST",body:JSON.stringify(d)});msg(r.message);load()}catch(x){msg(x.message,true)}})}
 async function renderMechanics(a){let services=[];try{services=await api("/api/admin/services")}catch(e){msg(e.message,true);return}const rows=services.filter(s=>s.name!=="Uklon"&&s.active);$("#content").innerHTML=`<div class="admin-card"><h2>👨‍🔧 Механіки СТО</h2><p>Закріпіть за кожним механіком ті види робіт, які він виконує. Після цього в заявці можна буде обрати механіка лише для дозволеної послуги.</p><form id="mechanicForm" class="form admin-form"><input name="name" placeholder="Ім'я механіка" required><select name="role"><option value="mechanic">Звичайний механік</option><option value="chief">Головний механік</option></select><button class="btn primary">Додати</button></form></div><div class="admin-list">${a.map(m=>`<article class="admin-card"><form class="mechanic-form" data-id="${m.id}"><h3>${m.role==="chief"?"⭐":"🔧"} ${esc(m.name)}</h3><input name="name" value="${esc(m.name)}" required><select name="role"><option value="mechanic" ${m.role!=="chief"?"selected":""}>Звичайний механік</option><option value="chief" ${m.role==="chief"?"selected":""}>Головний механік</option></select><label><input name="active" type="checkbox" ${m.active?"checked":""}> Активний</label><h4>🛠 Види робіт:</h4><div style="display:grid;gap:6px">${rows.map(s=>`<label><input type="checkbox" name="service_ids" value="${s.id}" ${m.service_ids.includes(Number(s.id))?"checked":""}> ${esc(s.name)} <small>(${s.duration_minutes} хв)</small></label>`).join("")}</div><button class="btn primary">💾 Зберегти механіка</button></form></article>`).join("")}</div>`;$("#mechanicForm").onsubmit=saveMechanic;document.querySelectorAll(".mechanic-form[data-id]").forEach(f=>f.onsubmit=saveMechanic)}
 async function saveMechanic(e){e.preventDefault();const f=e.target,d={name:f.querySelector('[name=name]').value.trim(),role:f.querySelector('[name=role]').value,active:f.querySelector('[name=active]').checked,service_ids:[...f.querySelectorAll('[name=service_ids]:checked')].map(x=>Number(x.value))};if(f.dataset.id)d.id=Number(f.dataset.id);try{const r=await api("/api/admin/mechanics",{method:"POST",body:JSON.stringify(d)});msg(r.message);load()}catch(x){msg(x.message,true)}}
