@@ -1,0 +1,20 @@
+
+<!-- Add this block to public/admin.html inside the authenticated admin content. -->
+<section class="ai-assistant">
+  <h2>🤖 AI-помічник</h2>
+  <p>Внутрішній помічник для аналізу заявок, описів робіт та SEO.</p>
+
+  <form id="ai-assistant-form">
+    <textarea
+      id="ai-assistant-input"
+      maxlength="6000"
+      placeholder="Наприклад: Ford Sierra, плавають оберти на холодну. Яку діагностику варто запропонувати і що перевірити першочергово?"
+    ></textarea>
+
+    <button id="ai-assistant-send" type="submit">✨ Запитати AI</button>
+  </form>
+
+  <div id="ai-assistant-output" hidden></div>
+</section>
+
+<script src="/ai.js" defer></script>

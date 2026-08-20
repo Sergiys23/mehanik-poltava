@@ -1,0 +1,6 @@
+
+# Add this to wrangler.toml.
+# Keep your existing D1/Assets settings unchanged.
+
+[ai]
+binding = "AI"
