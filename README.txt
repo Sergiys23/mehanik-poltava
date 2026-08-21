@@ -1,18 +1,37 @@
-MEHANIK POLTAVA V2 FOUNDATION
+# Public AI для Механік Полтава
 
-Логіка:
-- Пн-Сб 09:00-18:00.
-- Клієнт вибирає послугу і день, але НЕ час.
-- Адмін вибирає механіка і довільний час HH:MM.
-- У системі 3 механіки: головний + 2 механіки.
-- Мінімальний буфер між роботами одного механіка: 60 хв.
-- Uklon і Bolt рахуються як одна категорія Uklon.
-- Ціни та норми часу редагуються тільки superadmin.
+Це готовий пакет для додавання AI-помічника на основний сайт.
 
-Перед деплоєм:
-1. У Cloudflare D1 мають існувати старі таблиці bookings, booking_telegram, reviews, review_telegram, works, booking_history, admin_logs.
-2. Виконати schema.sql для нових таблиць.
-3. Додати ADMIN_PASSWORD, SUPERADMIN_PASSWORD, SESSION_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
-4. Замінити public/images/logo.png і public/images/mechanic.png реальними зображеннями СТО.
+### Що він робить
+- кнопка 🤖 AI з'являється в нижньому куті;
+- чат відкривається тільки після натискання;
+- не показує pop-up при вході;
+- працює через Cloudflare Workers AI binding `AI`;
+- читає актуальні послуги, ціни та норми часу з D1;
+- не показує Uklon клієнтам;
+- не вигадує час запису або остаточний діагноз;
+- обмежує публічний AI до 12 запитів з одного IP за хвилину.
 
-Це перший пакет архітектури. Перед заміною production worker треба звірити існуючі Cloudflare bindings/wrangler.toml.
+### Файли
+public/ai-client.js
+public/ai.css
+apply-ai-patch.py
+
+### Встановлення
+Поклади ці файли у свій репозиторій поруч із `worker.js`.
+Потім запусти:
+
+python apply-ai-patch.py
+
+Скрипт змінить `worker.js` та `public/index.html`.
+
+Переконайся, що у Cloudflare Worker є binding:
+AI → Workers AI
+
+Після цього зроби Deploy.
+
+API для клієнтського чату:
+POST /api/ai
+{"message":"..."}
+
+Секрети та API ключі в браузер не передаються.
