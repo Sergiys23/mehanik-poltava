@@ -204,7 +204,11 @@ const GOOGLE_SCOPE="https://www.googleapis.com/auth/drive.file";
 async function sha256Bytes(text){return new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text)))}
 async function aesKey(secret){return crypto.subtle.importKey("raw",await sha256Bytes(secret),"AES-GCM",false,["encrypt","decrypt"])}
 function bytesToB64(bytes){let s="";for(const b of bytes)s+=String.fromCharCode(b);return btoa(s)}
-function b64ToBytes(text){return Uint8Array.from(atob(text),c=>c.charCodeAt(0))}
+function b64ToBytes(text){
+  const normalized=String(text||"").replace(/-/g,"+").replace(/_/g,"/");
+  const padded=normalized+"=".repeat((4-normalized.length%4)%4);
+  return Uint8Array.from(atob(padded),c=>c.charCodeAt(0));
+}
 async function encryptSecret(secret,value){const iv=crypto.getRandomValues(new Uint8Array(12));const key=await aesKey(secret);const data=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(value));return `${b64(iv)}.${b64(new Uint8Array(data))}`}
 async function decryptSecret(secret,value){const [iv,data]=String(value||"").split(".");if(!iv||!data)throw Error("Зашифрований токен відсутній");const key=await aesKey(secret);const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64ToBytes(iv)},key,b64ToBytes(data));return new TextDecoder().decode(plain)}
 async function googleState(e,r){const sec=sessionSecret(e);const payload=`${r}.${Date.now()}.${crypto.randomUUID()}`;return `${b64(new TextEncoder().encode(payload))}.${await sig(sec,payload)}`}
