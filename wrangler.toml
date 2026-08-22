@@ -2,10 +2,6 @@ name = "mehanik-poltava"
 main = "worker.js"
 compatibility_date = "2026-08-17"
 
-[vars]
-GOOGLE_CLIENT_ID = "592349903281-uv80e7hc9iptjl5hk1tp90vofh0vfdl7.apps.googleusercontent.com"
-GOOGLE_DRIVE_FOLDER_ID = "1EN13EscsEv4SsDTxmwFfmvZ9xCsX0gfr"
-
 [assets]
 directory = "./public"
 binding = "ASSETS"
