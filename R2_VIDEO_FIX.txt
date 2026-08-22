@@ -1,0 +1,20 @@
+R2 VIDEO FIX — Механік Полтава
+
+У worker.js замінити ТІЛЬКИ функцію:
+
+async function mediaProxy(req,e,id){ ... }
+
+на функцію з файлу mediaProxy-R2-FIX.js.
+
+Причина:
+поточний код для HTTP 206 ставить Content-Length = obj.size.
+У Cloudflare R2 obj.size — це повний розмір об'єкта, а для Range треба використовувати obj.range.length.
+Через це Android Chrome отримує неправильний Content-Length і відео зависає на 0:00.
+
+Після заміни:
+1. Save / Deploy Worker.
+2. Відкрити сайт у Chrome.
+3. Оновити сторінку.
+4. Перевірити відео.
+
+Нічого в R2 видаляти або перезаливати НЕ потрібно.
