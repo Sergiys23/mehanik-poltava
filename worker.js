@@ -7,6 +7,7 @@ const M=t=>{const[a,b]=String(t).split(":").map(Number);return a*60+b};
 const VT=t=>/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(t));
 const DATE=/^\d{4}-\d{2}-\d{2}$/;
 const safeUrl=v=>{try{const u=new URL(String(v||""));return ["https:","http:"].includes(u.protocol)?u.href:""}catch{return ""}};
+function escHtml(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 const WD=d=>WORK.has(new Date(`${d}T12:00:00`).getDay());
 const OV=(a,ad,b,bd)=>a<b+bd&&a+ad>b;
 function now(){const p=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Kyiv",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()),g=k=>p.find(x=>x.type===k)?.value||"";return{date:`${g("year")}-${g("month")}-${g("day")}`,minutes:+g("hour")*60 + +g("minute")}}
@@ -199,7 +200,7 @@ const GOOGLE_AUTH_URL="https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL="https://oauth2.googleapis.com/token";
 const GOOGLE_DRIVE_API="https://www.googleapis.com/drive/v3";
 const GOOGLE_UPLOAD_API="https://www.googleapis.com/upload/drive/v3/files";
-const GOOGLE_SCOPE="https://www.googleapis.com/auth/drive.file";
+const GOOGLE_SCOPE="https://www.googleapis.com/auth/drive";
 
 async function sha256Bytes(text){return new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text)))}
 async function aesKey(secret){return crypto.subtle.importKey("raw",await sha256Bytes(secret),"AES-GCM",false,["encrypt","decrypt"])}
@@ -214,7 +215,32 @@ async function decryptSecret(secret,value){const [iv,data]=String(value||"").spl
 async function googleState(e,r){const sec=sessionSecret(e);const payload=`${r}.${Date.now()}.${crypto.randomUUID()}`;return `${b64(new TextEncoder().encode(payload))}.${await sig(sec,payload)}`}
 async function verifyGoogleState(e,state){const [a,s]=String(state||"").split(".");if(!a||!s)return null;let payload;try{payload=new TextDecoder().decode(b64ToBytes(a))}catch{return null}const [r,ts]=payload.split(".");if(!/^(admin|superadmin)$/.test(r)||!Number.isFinite(Number(ts))||Date.now()-Number(ts)>600000)return null;return s===await sig(sessionSecret(e),payload)?r:null}
 async function googleStart(req,e){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);if(!e.GOOGLE_CLIENT_ID||!e.GOOGLE_CLIENT_SECRET||!e.GOOGLE_DRIVE_FOLDER_ID)return J({error:"Google Drive не налаштований у Cloudflare Secrets/Variables"},503);const state=await googleState(e,a.role);const u=new URL(GOOGLE_AUTH_URL);u.searchParams.set("client_id",e.GOOGLE_CLIENT_ID);u.searchParams.set("redirect_uri",`${new URL(req.url).origin}/api/google/callback`);u.searchParams.set("response_type","code");u.searchParams.set("access_type","offline");u.searchParams.set("prompt","consent");u.searchParams.set("scope",GOOGLE_SCOPE);u.searchParams.set("state",state);return Response.redirect(u.toString(),302)}
-async function googleCallback(req,e){if(!e.GOOGLE_CLIENT_ID||!e.GOOGLE_CLIENT_SECRET)return new Response("Google OAuth не налаштований",{status:503});const u=new URL(req.url),state=await verifyGoogleState(e,u.searchParams.get("state"));if(!state)return new Response("Недійсний або прострочений OAuth state",{status:400});const code=u.searchParams.get("code");if(!code)return new Response("Google не повернув authorization code",{status:400});const body=new URLSearchParams({code,client_id:e.GOOGLE_CLIENT_ID,client_secret:e.GOOGLE_CLIENT_SECRET,redirect_uri:`${u.origin}/api/google/callback`,grant_type:"authorization_code"});const r=await fetch(GOOGLE_TOKEN_URL,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body});const d=await r.json().catch(()=>({}));if(!r.ok||!d.refresh_token)return new Response(`<h1>Google OAuth помилка</h1><pre>${escHtml(d.error_description||d.error||"Не отримано refresh token")}</pre>`,{status:502,headers:{"content-type":"text/html; charset=utf-8"}});const enc=await encryptSecret(sessionSecret(e),d.refresh_token);await e.DB.prepare(`INSERT INTO google_oauth(id,refresh_token_enc,updated_at) VALUES(1,?,datetime('now')) ON CONFLICT(id) DO UPDATE SET refresh_token_enc=excluded.refresh_token_enc,updated_at=datetime('now')`).bind(enc).run();return new Response(`<!doctype html><meta charset="utf-8"><title>Google Drive підключено</title><style>body{font-family:system-ui;background:#0b0d10;color:#fff;padding:30px;max-width:700px;margin:auto}a{display:inline-block;background:#ffbd00;color:#111;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:800}</style><h1>✅ Google Drive підключено</h1><p>Авторизація завершена. Токен збережено зашифрованим у Cloudflare D1. Його не потрібно копіювати вручну.</p><a href="/admin.html">Повернутися в адмінку</a>`,{status:200,headers:{"content-type":"text/html; charset=utf-8"}})}
+async function googleCallback(req,e){
+ try{
+  if(!e.GOOGLE_CLIENT_ID||!e.GOOGLE_CLIENT_SECRET||!e.GOOGLE_DRIVE_FOLDER_ID)return new Response("Google OAuth не налаштований",{status:503});
+  const u=new URL(req.url);
+  const googleError=u.searchParams.get("error");
+  if(googleError)return new Response(`<h1>Google OAuth скасовано</h1><pre>${escHtml(googleError)}${u.searchParams.get("error_description")?`\n${escHtml(u.searchParams.get("error_description"))}`:""}</pre><p><a href="/admin.html">Повернутися в адмінку</a></p>`,{status:400,headers:{"content-type":"text/html; charset=utf-8"}});
+  const state=await verifyGoogleState(e,u.searchParams.get("state"));
+  if(!state)return new Response("Недійсний або прострочений OAuth state",{status:400});
+  const code=u.searchParams.get("code");
+  if(!code)return new Response("Google не повернув authorization code",{status:400});
+  const redirectUri=`${u.origin}/api/google/callback`;
+  const body=new URLSearchParams({code,client_id:e.GOOGLE_CLIENT_ID,client_secret:e.GOOGLE_CLIENT_SECRET,redirect_uri:redirectUri,grant_type:"authorization_code"});
+  const r=await fetch(GOOGLE_TOKEN_URL,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok){console.error("Google token exchange failed",{status:r.status,error:d.error,description:d.error_description});return new Response(`<h1>Google OAuth помилка</h1><pre>HTTP ${r.status}\n${escHtml(d.error_description||d.error||"Невідома помилка Google")}</pre><p><a href="/admin.html">Повернутися в адмінку</a></p>`,{status:502,headers:{"content-type":"text/html; charset=utf-8"}})}
+  let refreshToken=String(d.refresh_token||"");
+  if(!refreshToken){
+    const old=await e.DB.prepare(`SELECT refresh_token_enc FROM google_oauth WHERE id=1`).first();
+    if(old?.refresh_token_enc)refreshToken=await decryptSecret(sessionSecret(e),old.refresh_token_enc);
+  }
+  if(!refreshToken){console.error("Google token exchange returned no refresh token");return new Response(`<h1>Google OAuth не завершено</h1><p>Google не повернув refresh token. Підключіть Google Drive ще раз із дозволом на доступ.</p><p><a href="/admin.html">Повернутися в адмінку</a></p>`,{status:502,headers:{"content-type":"text/html; charset=utf-8"}})}
+  const enc=await encryptSecret(sessionSecret(e),refreshToken);
+  await e.DB.prepare(`INSERT INTO google_oauth(id,refresh_token_enc,updated_at) VALUES(1,?,datetime('now')) ON CONFLICT(id) DO UPDATE SET refresh_token_enc=excluded.refresh_token_enc,updated_at=datetime('now')`).bind(enc).run();
+  return new Response(`<!doctype html><meta charset="utf-8"><title>Google Drive підключено</title><style>body{font-family:system-ui;background:#0b0d10;color:#fff;padding:30px;max-width:700px;margin:auto}a{display:inline-block;background:#ffbd00;color:#111;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:800}</style><h1>✅ Google Drive підключено</h1><p>Авторизація завершена. Токен збережено зашифрованим у Cloudflare D1.</p><a href="/admin.html">Повернутися в адмінку</a>`,{status:200,headers:{"content-type":"text/html; charset=utf-8"}})
+ }catch(err){console.error("Google OAuth callback failed",err);return new Response(`<h1>Google OAuth: внутрішня помилка</h1><pre>${escHtml(err?.message||String(err))}</pre><p><a href="/admin.html">Повернутися в адмінку</a></p>`,{status:500,headers:{"content-type":"text/html; charset=utf-8"}})}
+}
 async function googleAccessToken(e){const row=await e.DB.prepare(`SELECT refresh_token_enc FROM google_oauth WHERE id=1`).first();if(!row?.refresh_token_enc)throw Error("Google Drive не підключений. Відкрийте підключення Google Drive в адмінці.");const refresh=await decryptSecret(sessionSecret(e),row.refresh_token_enc);const body=new URLSearchParams({client_id:e.GOOGLE_CLIENT_ID,client_secret:e.GOOGLE_CLIENT_SECRET,refresh_token:refresh,grant_type:"refresh_token"});const r=await fetch(GOOGLE_TOKEN_URL,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body});const d=await r.json().catch(()=>({}));if(!r.ok||!d.access_token)throw Error("Не вдалося оновити Google access token");return d.access_token}
 async function googleStatus(req,e){
  const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);
