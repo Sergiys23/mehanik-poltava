@@ -9,6 +9,14 @@ const DATE=/^\d{4}-\d{2}-\d{2}$/;
 const safeUrl=v=>{try{const u=new URL(String(v||""));return ["https:","http:"].includes(u.protocol)?u.href:""}catch{return ""}};
 const WD=d=>WORK.has(new Date(`${d}T12:00:00`).getDay());
 const OV=(a,ad,b,bd)=>a<b+bd&&a+ad>b;
+function googleConfig(e){
+  return {
+    clientId: String(e.GOOGLE_CLIENT_ID || "").trim(),
+    clientSecret: String(e.GOOGLE_CLIENT_SECRET || "").trim(),
+    folderId: String(e.GOOGLE_DRIVE_FOLDER_ID || "").trim()
+  };
+}
+
 function now(){const p=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Kyiv",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()),g=k=>p.find(x=>x.type===k)?.value||"";return{date:`${g("year")}-${g("month")}-${g("day")}`,minutes:+g("hour")*60 + +g("minute")}}
 function b64(a){let s="";for(const x of a)s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")}
 async function sig(sec,t){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(sec),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return b64(new Uint8Array(await crypto.subtle.sign("HMAC",k,new TextEncoder().encode(t))))}
@@ -243,20 +251,7 @@ async function googleStatus(req,e){
   const token=await googleAccessToken(e);
   const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(e.GOOGLE_DRIVE_FOLDER_ID)}?fields=id,name,mimeType,trashed&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${token}`}});
   const d=await r.json().catch(()=>({}));
-  if(!r.ok){
-    const reason=d.error?.message||`Google Drive HTTP ${r.status}`;
-    return J({
-      connected:true,
-      configured:true,
-      folder_id:e.GOOGLE_DRIVE_FOLDER_ID||null,
-      folder_ok:false,
-      folder_error:reason,
-      google_http_status:r.status,
-      google_reason:d.error?.errors?.[0]?.reason||null,
-      needs_reconnect:r.status===401,
-      updated_at:row.updated_at||null
-    });
-  }
+  if(!r.ok) return J({connected:true,configured:true,folder_id:e.GOOGLE_DRIVE_FOLDER_ID||null,folder_ok:false,folder_error:d.error?.message||`Google Drive HTTP ${r.status}`,updated_at:row.updated_at||null});
   return J({connected:true,configured:true,folder_id:d.id,folder_name:d.name,folder_ok:d.mimeType==='application/vnd.google-apps.folder'&&!d.trashed,updated_at:row.updated_at||null});
  }catch(err){
   const message=String(err.message||err);
@@ -271,56 +266,7 @@ if(!folderCheck.ok||folderData.mimeType!=="application/vnd.google-apps.folder"||
 const metadata={name:String(form.get("filename")||file.name).slice(0,180),mimeType:file.type||"application/octet-stream",parents:[e.GOOGLE_DRIVE_FOLDER_ID]};const init=await fetch(`${GOOGLE_UPLOAD_API}?uploadType=resumable&fields=id,name,mimeType,size,webViewLink`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json; charset=UTF-8","X-Upload-Content-Type":file.type||"application/octet-stream","X-Upload-Content-Length":String(file.size)},body:JSON.stringify(metadata)});if(!init.ok){const d=await init.json().catch(()=>({}));throw Error(d.error?.message||`Google Drive upload init HTTP ${init.status}`)}const location=init.headers.get("location");if(!location)throw Error("Google Drive не повернув upload session");const put=await fetch(location,{method:"PUT",headers:{"Content-Length":String(file.size)},body:file});const d=await put.json().catch(()=>({}));if(!put.ok||!d.id)throw Error(d.error?.message||`Google Drive upload HTTP ${put.status}`);await e.DB.prepare(`INSERT OR REPLACE INTO drive_media(id,name,mime_type,size_bytes) VALUES(?,?,?,?)`).bind(String(d.id),String(d.name||file.name),String(d.mimeType||file.type||"application/octet-stream"),Number(d.size||file.size)).run();await audit(e.DB,a.role,"drive_upload",String(d.id),String(d.name||file.name));return J({ok:true,id:String(d.id),name:d.name,mimeType:d.mimeType,size:Number(d.size||file.size),url:new URL(`/api/media/${encodeURIComponent(d.id)}`,req.url).href,type:kind})}
 async function driveDeleteById(e,id){const token=await googleAccessToken(e);const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});if(!r.ok&&r.status!==404){const d=await r.json().catch(()=>({}));throw Error(d.error?.message||`Google Drive HTTP ${r.status}`)}await e.DB.prepare(`DELETE FROM drive_media WHERE id=?`).bind(id).run();return true}
 async function driveDelete(req,e){const a=await auth(req,e,true);if(a.error)return J({error:a.error},a.status);const id=String(new URL(req.url).searchParams.get("id")||"");if(!id)return J({error:"Не вказано ID файлу"},400);const token=await googleAccessToken(e);const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});if(!r.ok&&r.status!==404){const d=await r.json().catch(()=>({}));return J({error:d.error?.message||`Google Drive HTTP ${r.status}`},502)}await e.DB.prepare(`DELETE FROM drive_media WHERE id=?`).bind(id).run();return J({ok:true,message:"Файл видалено з Google Drive"})}
-async function mediaProxy(req,e,id){
-  const row=await e.DB.prepare(`SELECT mime_type,name FROM drive_media WHERE id=?`).bind(id).first();
-  if(!row)return new Response("Media not found",{status:404,headers:base});
-
-  let token;
-  try{
-    token=await googleAccessToken(e);
-  }catch(err){
-    return J({error:String(err.message||err)},502);
-  }
-
-  const headers={Authorization:`Bearer ${token}`};
-  const range=req.headers.get("range");
-  if(range)headers.Range=range;
-
-  const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`,{
-    method:"GET",
-    headers
-  });
-
-  if(!r.ok){
-    const d=await r.json().catch(()=>({}));
-    const h=new Headers(base);
-    h.set("content-type","application/json; charset=utf-8");
-    h.set("cache-control","no-store");
-    return new Response(JSON.stringify({
-      error:d.error?.message||`Google Drive HTTP ${r.status}`,
-      status:r.status,
-      id
-    }),{status:r.status,headers:h});
-  }
-
-  const h=new Headers(base);
-  h.set("content-type",r.headers.get("content-type")||row?.mime_type||"application/octet-stream");
-  h.set("cache-control","private, no-store");
-  h.set("accept-ranges","bytes");
-
-  for(const k of ["content-range","content-length","etag","last-modified"]){
-    const v=r.headers.get(k);
-    if(v)h.set(k,v);
-  }
-
-  h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row?.name||id)}`);
-  h.set("x-content-type-options","nosniff");
-
-  return new Response(req.method==="HEAD"?null:r.body,{
-    status:r.status,
-    headers:h
-  });
-}
+async function mediaProxy(req,e,id){const row=await e.DB.prepare(`SELECT mime_type,name FROM drive_media WHERE id=?`).bind(id).first();if(!row)return new Response("Media not found",{status:404,headers:base});const token=await googleAccessToken(e);const headers={Authorization:`Bearer ${token}`};const range=req.headers.get("range");if(range)headers.Range=range;const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`,{method:"GET",headers});if(!r.ok)return new Response("Media unavailable",{status:r.status,headers:base});const h=new Headers(base);h.set("content-type",r.headers.get("content-type")||row?.mime_type||"application/octet-stream");h.set("cache-control","private, no-store");h.set("accept-ranges","bytes");if(r.headers.get("content-range"))h.set("content-range",r.headers.get("content-range"));if(r.headers.get("content-length"))h.set("content-length",r.headers.get("content-length"));h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row?.name||id)}`);return new Response(req.method==="HEAD"?null:r.body,{status:r.status,headers:h})}
 
 async function api(req,e,u){if(req.method==="OPTIONS")return new Response(null,{status:204,headers:base});if(u.pathname==="/api/telegram/webhook"&&req.method==="POST")return telegramWebhook(req,e);await ensure(e.DB);if(u.pathname==="/api/google/start"&&req.method==="GET")return googleStart(req,e);if(u.pathname==="/api/google/callback"&&req.method==="GET")return googleCallback(req,e);if(u.pathname==="/api/media/status"&&req.method==="GET")return googleStatus(req,e);if(u.pathname==="/api/media/upload"&&req.method==="POST")return driveUpload(req,e);if(u.pathname==="/api/media/delete"&&req.method==="DELETE")return driveDelete(req,e);if(u.pathname.startsWith("/api/media/")&&(req.method==="GET"||req.method==="HEAD"))return mediaProxy(req,e,u.pathname.slice("/api/media/".length));if(u.pathname==="/api/auth/login"&&req.method==="POST")return login(req,e);if(u.pathname==="/api/auth/logout"&&req.method==="POST")return J({ok:true},200,{"set-cookie":"mehanik_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"});if(u.pathname==="/api/ai"&&req.method==="POST")return publicAI(req,e);if(u.pathname==="/api/services"&&req.method==="GET")return services(e);if(u.pathname==="/api/works"&&req.method==="GET")return works(e);if(u.pathname==="/api/reviews"&&req.method==="GET")return reviews(e);if(u.pathname==="/api/reviews"&&req.method==="POST")return createReview(req,e);if(u.pathname==="/api/bookings"&&req.method==="POST")return booking(req,e);if(u.pathname==="/api/admin/analytics"&&req.method==="GET"){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);return analytics(req,e)}if(u.pathname.startsWith("/api/admin/")){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);const r=a.role;if(u.pathname==="/api/admin/telegram/setup"&&req.method==="GET"){await ensureTelegramBot(e);return J({ok:true,webhook:`${new URL(req.url).origin}/api/telegram/webhook`,commands:["/start","/completed"]})}if(u.pathname==="/api/admin/ai"&&req.method==="POST")return adminAI(req,e,r);if(u.pathname==="/api/admin/market"&&req.method==="GET")return marketAdmin(req,e);if(u.pathname==="/api/admin/market"&&req.method==="POST"){if(r!=="superadmin")return J({error:"Потрібні права superadmin"},403);return marketAdmin(req,e)}if(u.pathname==="/api/admin/bookings")return adminBookings(req,e,r);if(u.pathname==="/api/admin/completed-works")return completedWorks(req,e);if(u.pathname==="/api/admin/services")return adminServices(req,e,r);if(u.pathname==="/api/admin/mechanics")return adminMechanics(req,e);if(u.pathname==="/api/admin/reviews")return adminReviews(req,e);if(u.pathname==="/api/admin/works")return adminWorks(req,e);if(u.pathname==="/api/admin/history")return history(req,e);if(u.pathname==="/api/admin/blocks")return blocks(req,e);if(u.pathname==="/api/admin/logs"){const s=await auth(req,e,true);if(s.error)return J({error:s.error},s.status);return logs(req,e)}return J({error:"API route not found"},404)}return null}
 function secureAsset(resp){const h=new Headers(resp.headers);for(const[k,v] of Object.entries(base))if(!h.has(k)||k.startsWith("content-security-policy"))h.set(k,v);return new Response(resp.body,{status:resp.status,statusText:resp.statusText,headers:h})}
