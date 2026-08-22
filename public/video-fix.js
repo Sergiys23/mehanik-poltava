@@ -44,7 +44,7 @@
       try{const r=await api('/api/admin/works',{method:'POST',body:JSON.stringify({title,car,description,instagram_url:instagram,media_type:'video',media_url:url.value.trim()})});if(m)m.textContent='';document.querySelector('#msg').innerHTML=`<div class="message success">${esc(r.message)}</div>`;if(typeof window.load==='function')window.load();else location.reload();}catch(e){if(m)m.textContent='';alert(e.message)}
     },true);
   }
-  function run(){fixPublic();const form=$('#workForm');if(form)addControls(form)}
+  function run(){fixPublic();if(window.MechanikMedia?.hydrate)window.MechanikMedia.hydrate(document)}
   new MutationObserver(run).observe(document.documentElement,{childList:true,subtree:true});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
 })();
