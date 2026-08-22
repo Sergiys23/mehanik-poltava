@@ -1,79 +1,86 @@
-window.MechanikMedia=window.MechanikMedia||(()=>{
-"use strict";
+(()=>{
+  "use strict";
 
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-function yt(v){try{const u=new URL(v);if(u.hostname==="youtu.be")return u.pathname.split("/").filter(Boolean)[0]||null;if(u.hostname.includes("youtube.com")){if(u.pathname==="/watch")return u.searchParams.get("v");const m=u.pathname.match(/\/(?:embed|shorts|live)\/([^/?]+)/);return m?.[1]||null}}catch{}return null}
-function ig(v){try{const u=new URL(v);if(!u.hostname.endsWith("instagram.com"))return null;const m=u.pathname.match(/\/(reel|p|tv)\/([^/?]+)/);return m?`https://www.instagram.com/${m[1]}/${m[2]}/embed`:null}catch{return null}}
+  const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 
-function render(w){
-  const type=String(w?.media_type||"").toLowerCase();
-  const p=String(w?.player_type||"").toLowerCase();
-  const url=String(w?.media_url||w?.image_url||"").trim();
-  const title=esc(w?.title||"Робота СТО");
+  function prepareVideo(v){
+    if(!v || v.dataset.streamReady==="1") return;
 
-  if(!url)return`<div class="work-media-placeholder">Медіа ще не додано</div>`;
+    v.dataset.streamReady="1";
+    v.preload="none";
+    v.playsInline=true;
+    v.controls=true;
 
-  if(type!=="video"){
-    return`<img class="work-media-image" loading="lazy" decoding="async" src="${esc(url)}" alt="${title}">`;
-  }
+    const src=v.dataset.src || v.getAttribute("src");
+    if(!src) return;
 
-  if(p==="youtube"||p==="youtube_nocookie"){
-    const id=yt(url);
-    if(!id)return`<div class="work-media-placeholder">Некоректне YouTube-посилання</div>`;
-    const h=p==="youtube_nocookie"
-      ?"https://www.youtube-nocookie.com/embed/"
-      :"https://www.youtube.com/embed/";
+    // Do not request the file until the user explicitly starts it.
+    if(v.dataset.src) v.removeAttribute("src");
 
-    return`<div class="work-media-video">
-      <iframe loading="lazy" src="${h}${encodeURIComponent(id)}?rel=0&playsinline=1"
-        title="${title}"
-        allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share"
-        allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
-    </div>`;
-  }
+    const wrapper=v.parentElement;
+    if(!wrapper) return;
 
-  if(p==="instagram"){
-    const src=ig(url);
-    if(!src)return`<div class="work-media-placeholder">Некоректне Instagram-посилання</div>`;
-    return`<div class="work-media-video">
-      <iframe loading="lazy" src="${src}" title="${title}" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
-    </div>`;
-  }
+    wrapper.classList.add("media-lazy-video");
 
-  return`<div class="work-media-video work-media-video-html5">
-    <video class="work-media-video-html5" controls preload="metadata" playsinline
-      data-src="${esc(url)}" title="${title}"></video>
-    <button type="button" class="work-video-load">▶️ Запустити відео</button>
-  </div>`;
-}
+    const poster=wrapper.querySelector(".media-video-poster") || document.createElement("button");
+    if(!poster.parentElement){
+      poster.type="button";
+      poster.className="media-video-poster";
+      poster.innerHTML=`<span class="media-play-icon">▶</span><span>Запустити відео</span>`;
+      wrapper.appendChild(poster);
+    }
 
-function hydrate(root=document){
-  root.querySelectorAll("video[data-src]").forEach(v=>{
-    if(v.dataset.hydrated)return;
+    const start=async()=>{
+      if(v.dataset.loaded==="1"){
+        try{ await v.play(); }catch{}
+        return;
+      }
 
-    const wrap=v.closest(".work-media-video-html5")||v.parentElement;
-    const button=wrap?.querySelector(".work-video-load");
+      v.dataset.loaded="1";
+      poster.disabled=true;
+      poster.innerHTML=`<span>⏳ Завантаження відео…</span>`;
 
-    const load=async()=>{
-      if(v.dataset.hydrated)return true;
-      v.dataset.hydrated="1";
-      v.src=v.dataset.src;
-      v.removeAttribute("data-src");
+      v.src=src;
       v.load();
-      return true;
+
+      const onReady=()=>{
+        poster.remove();
+        v.removeEventListener("loadedmetadata",onReady);
+        v.removeEventListener("canplay",onReady);
+        v.play().catch(()=>{});
+      };
+
+      const onError=()=>{
+        poster.disabled=false;
+        poster.innerHTML=`<span>⚠️ Не вдалося запустити відео</span>`;
+        v.dataset.loaded="0";
+        v.removeEventListener("error",onError);
+      };
+
+      v.addEventListener("loadedmetadata",onReady,{once:true});
+      v.addEventListener("canplay",onReady,{once:true});
+      v.addEventListener("error",onError,{once:true});
     };
 
-    const start=async ev=>{
-      if(ev)ev.preventDefault();
-      await load();
-      try{await v.play()}catch{}
-    };
+    poster.addEventListener("click",start);
+  }
 
-    v.addEventListener("pointerdown",load,{once:true});
-    v.addEventListener("click",start);
-    button?.addEventListener("click",start);
-  });
-}
+  function prepare(root=document){
+    root.querySelectorAll("video[data-src], video[data-media-url]").forEach(prepareVideo);
+    root.querySelectorAll("video").forEach(v=>{
+      if(v.dataset.src || v.dataset.mediaUrl) prepareVideo(v);
+    });
+  }
 
-return{render,hydrate};
+  window.MechanikMedia={
+    ...(window.MechanikMedia||{}),
+    hydrate:prepare,
+    prepareVideo
+  };
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>prepare());
+  }else{
+    prepare();
+  }
 })();
