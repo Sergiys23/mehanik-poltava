@@ -1,72 +1,70 @@
 # Google Drive для медіа СТО «Механік Полтава»
 
-Ця версія використовує Google Drive як постійне сховище фото та відео. OAuth refresh token після першого підключення зберігається **зашифрованим у Cloudflare D1**, а Client ID/Client Secret залишаються у Cloudflare Secrets.
+Ця збірка використовує **Google Drive OAuth** як постійне сховище фото та відео. Service Account для особистої папки Drive не використовується.
 
-## 1. Cloudflare Variables / Secrets
-
-Додай:
+## Cloudflare
 
 ### Variables
 
 `GOOGLE_CLIENT_ID`
 
-Значення: Client ID із Google Auth Platform.
+Client ID з Google Auth Platform → Clients → Web application.
 
 `GOOGLE_DRIVE_FOLDER_ID`
 
-Значення:
-
-`1EN13EscsEv4SsDTxmwFfmvZ9xCsX0gfr`
+```text
+1EN13EscsEv4SsDTxmwFfmvZ9xCsX0gfr
+```
 
 ### Secrets
 
 `GOOGLE_CLIENT_SECRET`
 
-Значення: Client Secret із Google Auth Platform.
+Client Secret з Google Auth Platform.
 
-Не додавай Client Secret у GitHub або ZIP.
+**Не додавай Client Secret, refresh token або JSON-ключ у GitHub/ZIP.**
 
-## 2. Google OAuth
+## Google Cloud
 
-У Google Auth Platform має бути Web application.
+У Google Auth Platform → Clients → твій Web application:
 
-Authorized JavaScript origin:
+**Authorized JavaScript origins**
 
-`https://mehanik.mehanik.workers.dev`
+```text
+https://mehanik.mehanik.workers.dev
+```
 
-Authorized redirect URI:
+**Authorized redirect URI**
 
-`https://mehanik.mehanik.workers.dev/api/google/callback`
+```text
+https://mehanik.mehanik.workers.dev/api/google/callback
+```
 
-Додай свій Google-акаунт до Test users, поки застосунок не пройшов Google verification.
+Також додай свій Google-акаунт у **Test users**, поки OAuth-застосунок перебуває в режимі тестування.
 
-## 3. Підключення
+Переконайся, що в Google Cloud увімкнений **Google Drive API** для поточного проєкту.
 
-1. Deploy Worker.
-2. Увійди в `/admin.html` як superadmin.
-3. Відкрий **Роботи**.
-4. Натисни **☁️ Підключити Google Drive**.
-5. Погодься на доступ до Google Drive.
-6. Після callback повернешся в адмінку.
+## Підключення
 
-Refresh token буде зашифрований і записаний у D1 таблицю `google_oauth`. Вручну копіювати refresh token у Cloudflare не потрібно.
+1. Додай `GOOGLE_CLIENT_ID` як Variable у Cloudflare.
+2. Додай `GOOGLE_DRIVE_FOLDER_ID` як Variable.
+3. Додай `GOOGLE_CLIENT_SECRET` як Secret.
+4. Deploy Worker.
+5. Увійди в `/admin.html` як `superadmin`.
+6. Відкрий **Роботи**.
+7. Натисни **☁️ Підключити Google Drive**.
+8. У Google підтвердь доступ.
+9. Після callback повернешся в адмінку.
 
-## 4. Завантаження
+Worker збереже OAuth refresh token **зашифрованим у D1**. Сам refresh token не треба копіювати в Cloudflare вручну.
 
-У вкладці **Роботи** можна:
+## Медіа
 
-- завантажити фото;
-- завантажити MP4/WebM/MOV;
-- зберегти назву автомобіля та опис;
-- додати Instagram-посилання;
-- видалити роботу разом із файлом у Drive.
+У вкладці **Роботи** можна завантажувати:
 
-Максимальний файл у цьому режимі: 90 МБ. Саме сховище Google Drive не обмежується цим значенням, це ліміт одного upload через Worker.
+- JPG / PNG / WebP / GIF;
+- MP4 / WebM / MOV.
 
-## 5. Відео на сайті
+Один upload через Worker обмежений 90 МБ.
 
-Сайт використовує звичайний HTML5 `<video>` через `/api/media/<drive-file-id>`.
-
-Клієнт не бачить Google Drive, назву Google-акаунта або YouTube-інтерфейс.
-
-Worker підтримує HTTP Range для відео, тому перемотування HTML5-плеєра працює нормально.
+На публічному сайті відео відтворюється звичайним HTML5 `<video>` через Worker. Google Drive або YouTube-інтерфейс користувачу не показується.
