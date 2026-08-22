@@ -15,12 +15,9 @@ migrations_dir = "migrations"
 [ai]
 binding = "AI"
 
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "mehanik-media"
+
 [triggers]
 crons = ["0 * * * *", "0 3 * * *"]
-
-[vars]
-GOOGLE_CLIENT_ID = "592349903281-uv80e7hc9iptjl5hk1tp90vofh0vfdl7.apps.googleusercontent.com"
-GOOGLE_DRIVE_FOLDER_ID = "1EN13EscsEv4SsDTxmwFfmvZ9xCsX0gfr"
-
-[secrets]
-required = ["GOOGLE_CLIENT_SECRET"]

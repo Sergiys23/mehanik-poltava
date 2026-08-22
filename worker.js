@@ -255,10 +255,86 @@ async function driveUpload(req,e){const a=await auth(req,e,true);if(a.error)retu
 const folderCheck=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(e.GOOGLE_DRIVE_FOLDER_ID)}?fields=id,name,mimeType,trashed&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${token}`}});
 const folderData=await folderCheck.json().catch(()=>({}));
 if(!folderCheck.ok||folderData.mimeType!=="application/vnd.google-apps.folder"||folderData.trashed)throw Error(folderData.error?.message||"Папку Google Drive не знайдено або немає доступу");
-const metadata={name:String(form.get("filename")||file.name).slice(0,180),mimeType:file.type||"application/octet-stream",parents:[e.GOOGLE_DRIVE_FOLDER_ID]};const init=await fetch(`${GOOGLE_UPLOAD_API}?uploadType=resumable&fields=id,name,mimeType,size,webViewLink`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json; charset=UTF-8","X-Upload-Content-Type":file.type||"application/octet-stream","X-Upload-Content-Length":String(file.size)},body:JSON.stringify(metadata)});if(!init.ok){const d=await init.json().catch(()=>({}));throw Error(d.error?.message||`Google Drive upload init HTTP ${init.status}`)}const location=init.headers.get("location");if(!location)throw Error("Google Drive не повернув upload session");const put=await fetch(location,{method:"PUT",headers:{"Content-Length":String(file.size)},body:file});const d=await put.json().catch(()=>({}));if(!put.ok||!d.id)throw Error(d.error?.message||`Google Drive upload HTTP ${put.status}`);await e.DB.prepare(`INSERT OR REPLACE INTO drive_media(id,name,mime_type,size_bytes) VALUES(?,?,?,?)`).bind(String(d.id),String(d.name||file.name),String(d.mimeType||file.type||"application/octet-stream"),Number(d.size||file.size)).run();await audit(e.DB,a.role,"drive_upload",String(d.id),String(d.name||file.name));return J({ok:true,id:String(d.id),name:d.name,mimeType:d.mimeType,size:Number(d.size||file.size),url:new URL(`/api/media/${encodeURIComponent(d.id)}`,req.url).href,type:kind})}
+const metadata={name:String(form.get("filename")||file.name).slice(0,180),mimeType:file.type||"application/octet-stream",parents:[e.GOOGLE_DRIVE_FOLDER_ID]};const init=await fetch(`${GOOGLE_UPLOAD_API}?uploadType=resumable&fields=id,name,mimeType,size,webViewLink`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json; charset=UTF-8","X-Upload-Content-Type":file.type||"application/octet-stream","X-Upload-Content-Length":String(file.size)},body:JSON.stringify(metadata)});if(!init.ok){const d=await init.json().catch(()=>({}));throw Error(d.error?.message||`Google Drive upload init HTTP ${init.status}`)}const location=init.headers.get("location");if(!location)throw Error("Google Drive не повернув upload session");const put=await fetch(location,{method:"PUT",headers:{"Content-Length":String(file.size)},body:file});const d=await put.json().catch(()=>({}));if(!put.ok||!d.id)throw Error(d.error?.message||`Google Drive upload HTTP ${put.status}`);
+if(e.MEDIA){
+  try{
+    await e.MEDIA.put(r2Key(String(d.id)),file.stream(),{httpMetadata:{contentType:String(d.mimeType||file.type||"application/octet-stream")}});
+  }catch(err){
+    console.log("R2 upload failed",String(err?.message||err));
+  }
+}
+await e.DB.prepare(`INSERT OR REPLACE INTO drive_media(id,name,mime_type,size_bytes) VALUES(?,?,?,?)`).bind(String(d.id),String(d.name||file.name),String(d.mimeType||file.type||"application/octet-stream"),Number(d.size||file.size)).run();await audit(e.DB,a.role,"drive_upload",String(d.id),String(d.name||file.name));return J({ok:true,id:String(d.id),name:d.name,mimeType:d.mimeType,size:Number(d.size||file.size),url:new URL(`/api/media/${encodeURIComponent(d.id)}`,req.url).href,type:kind})}
 async function driveDeleteById(e,id){const token=await googleAccessToken(e);const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});if(!r.ok&&r.status!==404){const d=await r.json().catch(()=>({}));throw Error(d.error?.message||`Google Drive HTTP ${r.status}`)}await e.DB.prepare(`DELETE FROM drive_media WHERE id=?`).bind(id).run();return true}
 async function driveDelete(req,e){const a=await auth(req,e,true);if(a.error)return J({error:a.error},a.status);const id=String(new URL(req.url).searchParams.get("id")||"");if(!id)return J({error:"Не вказано ID файлу"},400);const token=await googleAccessToken(e);const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});if(!r.ok&&r.status!==404){const d=await r.json().catch(()=>({}));return J({error:d.error?.message||`Google Drive HTTP ${r.status}`},502)}await e.DB.prepare(`DELETE FROM drive_media WHERE id=?`).bind(id).run();return J({ok:true,message:"Файл видалено з Google Drive"})}
-async function mediaProxy(req,e,id){const row=await e.DB.prepare(`SELECT mime_type,name FROM drive_media WHERE id=?`).bind(id).first();if(!row)return new Response("Media not found",{status:404,headers:base});const token=await googleAccessToken(e);const headers={Authorization:`Bearer ${token}`};const range=req.headers.get("range");if(range)headers.Range=range;const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`,{method:"GET",headers});if(!r.ok)return new Response("Media unavailable",{status:r.status,headers:base});const h=new Headers(base);h.set("content-type",r.headers.get("content-type")||row?.mime_type||"application/octet-stream");h.set("cache-control","private, no-store");h.set("accept-ranges","bytes");if(r.headers.get("content-range"))h.set("content-range",r.headers.get("content-range"));if(r.headers.get("content-length"))h.set("content-length",r.headers.get("content-length"));h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row?.name||id)}`);return new Response(req.method==="HEAD"?null:r.body,{status:r.status,headers:h})}
+function r2Key(id){return `media/${String(id)}`}
+
+function mediaResponseFromR2(req,obj,row){
+  const h=new Headers(base);
+  h.set("content-type",row?.mime_type||"application/octet-stream");
+  h.set("accept-ranges","bytes");
+  h.set("cache-control","public, max-age=86400, s-maxage=86400");
+  h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row?.name||"media")}`);
+  if(obj?.httpMetadata?.contentType)h.set("content-type",obj.httpMetadata.contentType);
+  if(obj?.size!=null)h.set("content-length",String(obj.size));
+  return new Response(req.method==="HEAD"?null:obj.body,{status:200,headers:h});
+}
+
+async function mediaProxy(req,e,id){
+  const row=await e.DB.prepare(`SELECT mime_type,name,size_bytes FROM drive_media WHERE id=?`).bind(id).first();
+  if(!row)return new Response("Media not found",{status:404,headers:base});
+
+  if(e.MEDIA){
+    const range=req.headers.get("range");
+    let obj=null;
+    if(range){
+      const m=range.match(/^bytes=(\d+)-(\d*)$/);
+      if(m){
+        const start=Number(m[1]);
+        const end=m[2]?Number(m[2]):Math.max(start,Number(row.size_bytes||0)-1);
+        if(Number.isFinite(start)&&Number.isFinite(end)&&end>=start){
+          obj=await e.MEDIA.get(r2Key(id),{range:{offset:start,length:end-start+1}});
+          if(obj){
+            const h=new Headers(base);
+            h.set("content-type",row.mime_type||"application/octet-stream");
+            h.set("accept-ranges","bytes");
+            h.set("cache-control","public, max-age=86400, s-maxage=86400");
+            h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||"media")}`);
+            h.set("content-length",String(obj.size));
+            h.set("content-range",`bytes ${start}-${start+obj.size-1}/${row.size_bytes||"*"}`);
+            return new Response(req.method==="HEAD"?null:obj.body,{status:206,headers:h});
+          }
+        }
+      }
+    }else{
+      obj=await e.MEDIA.get(r2Key(id));
+      if(obj)return mediaResponseFromR2(req,obj,row);
+    }
+  }
+
+  const token=await googleAccessToken(e);
+  const headers={Authorization:`Bearer ${token}`};
+  const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`,{method:"GET",headers});
+  if(!r.ok)return new Response("Media unavailable",{status:r.status,headers:base});
+
+  if(e.MEDIA && r.body){
+    try{
+      await e.MEDIA.put(r2Key(id),r.body,{httpMetadata:{contentType:row.mime_type||r.headers.get("content-type")||"application/octet-stream"}});
+      const obj=await e.MEDIA.get(r2Key(id));
+      if(obj)return mediaResponseFromR2(req,obj,row);
+    }catch(err){
+      console.log("R2 migration failed",String(err?.message||err));
+    }
+  }
+
+  const h=new Headers(base);
+  h.set("content-type",r.headers.get("content-type")||row.mime_type||"application/octet-stream");
+  h.set("cache-control","private, no-store");
+  h.set("accept-ranges","bytes");
+  if(r.headers.get("content-range"))h.set("content-range",r.headers.get("content-range"));
+  if(r.headers.get("content-length"))h.set("content-length",r.headers.get("content-length"));
+  h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||id)}`);
+  return new Response(req.method==="HEAD"?null:r.body,{status:r.status,headers:h});
+}
 
 async function api(req,e,u){if(req.method==="OPTIONS")return new Response(null,{status:204,headers:base});if(u.pathname==="/api/telegram/webhook"&&req.method==="POST")return telegramWebhook(req,e);await ensure(e.DB);if(u.pathname==="/api/google/start"&&req.method==="GET")return googleStart(req,e);if(u.pathname==="/api/google/callback"&&req.method==="GET")return googleCallback(req,e);if(u.pathname==="/api/media/status"&&req.method==="GET")return googleStatus(req,e);if(u.pathname==="/api/media/upload"&&req.method==="POST")return driveUpload(req,e);if(u.pathname==="/api/media/delete"&&req.method==="DELETE")return driveDelete(req,e);if(u.pathname.startsWith("/api/media/")&&(req.method==="GET"||req.method==="HEAD"))return mediaProxy(req,e,u.pathname.slice("/api/media/".length));if(u.pathname==="/api/auth/login"&&req.method==="POST")return login(req,e);if(u.pathname==="/api/auth/logout"&&req.method==="POST")return J({ok:true},200,{"set-cookie":"mehanik_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"});if(u.pathname==="/api/ai"&&req.method==="POST")return publicAI(req,e);if(u.pathname==="/api/services"&&req.method==="GET")return services(e);if(u.pathname==="/api/works"&&req.method==="GET")return works(e);if(u.pathname==="/api/reviews"&&req.method==="GET")return reviews(e);if(u.pathname==="/api/reviews"&&req.method==="POST")return createReview(req,e);if(u.pathname==="/api/bookings"&&req.method==="POST")return booking(req,e);if(u.pathname==="/api/admin/analytics"&&req.method==="GET"){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);return analytics(req,e)}if(u.pathname.startsWith("/api/admin/")){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);const r=a.role;if(u.pathname==="/api/admin/telegram/setup"&&req.method==="GET"){await ensureTelegramBot(e);return J({ok:true,webhook:`${new URL(req.url).origin}/api/telegram/webhook`,commands:["/start","/completed"]})}if(u.pathname==="/api/admin/ai"&&req.method==="POST")return adminAI(req,e,r);if(u.pathname==="/api/admin/market"&&req.method==="GET")return marketAdmin(req,e);if(u.pathname==="/api/admin/market"&&req.method==="POST"){if(r!=="superadmin")return J({error:"Потрібні права superadmin"},403);return marketAdmin(req,e)}if(u.pathname==="/api/admin/bookings")return adminBookings(req,e,r);if(u.pathname==="/api/admin/completed-works")return completedWorks(req,e);if(u.pathname==="/api/admin/services")return adminServices(req,e,r);if(u.pathname==="/api/admin/mechanics")return adminMechanics(req,e);if(u.pathname==="/api/admin/reviews")return adminReviews(req,e);if(u.pathname==="/api/admin/works")return adminWorks(req,e);if(u.pathname==="/api/admin/history")return history(req,e);if(u.pathname==="/api/admin/blocks")return blocks(req,e);if(u.pathname==="/api/admin/logs"){const s=await auth(req,e,true);if(s.error)return J({error:s.error},s.status);return logs(req,e)}return J({error:"API route not found"},404)}return null}
 function secureAsset(resp){const h=new Headers(resp.headers);for(const[k,v] of Object.entries(base))if(!h.has(k)||k.startsWith("content-security-policy"))h.set(k,v);return new Response(resp.body,{status:resp.status,statusText:resp.statusText,headers:h})}
