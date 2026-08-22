@@ -1,5 +1,5 @@
 name = "mehanik-poltava"
-main = "worker.js"
+main = "worker-google-fix.js"
 compatibility_date = "2026-08-17"
 
 [assets]
