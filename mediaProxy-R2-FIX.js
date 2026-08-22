@@ -70,9 +70,6 @@ async function mediaProxy(req,e,id){
           return new Response("Media not found",{status:404,headers:base});
         }
 
-        // ВАЖЛИВО:
-        // obj.size = повний розмір R2-об'єкта.
-        // Для Range потрібно брати obj.range.length.
         const actualStart=Number(obj.range?.offset ?? start);
         const actualLength=Number(obj.range?.length ?? length);
         const actualEnd=actualStart+actualLength-1;
@@ -106,7 +103,6 @@ async function mediaProxy(req,e,id){
     }
   }
 
-  // Google Drive fallback для старих файлів.
   const driveId=String(row.drive_id||"");
   if(!driveId){
     return new Response("Media unavailable",{status:502,headers:base});
