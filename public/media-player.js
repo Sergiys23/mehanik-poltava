@@ -1,0 +1,12 @@
+window.MechanikMedia=(()=>{
+"use strict";
+function yt(url){try{const u=new URL(url);if(u.hostname==="youtu.be")return u.pathname.slice(1).split("/")[0];if(u.hostname.includes("youtube.com")){if(u.pathname==="/watch")return u.searchParams.get("v");const m=u.pathname.match(/\/(?:embed|shorts|live)\/([^/?]+)/);return m?.[1]}}catch{}return null}
+function ig(url){try{const u=new URL(url);if(!u.hostname.includes("instagram.com"))return null;const m=u.pathname.match(/\/(reel|p|tv)\/([^/?]+)/);return m?`https://www.instagram.com/${m[1]}/${m[2]}/embed`:null}catch{return null}}
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+function render(w){const type=String(w?.media_type||"").toLowerCase(),p=String(w?.player_type||"").toLowerCase(),url=String(w?.media_url||w?.image_url||"").trim();if(!url)return`<div class="work-media-placeholder">Медіа ще не додано</div>`;
+if(["photo","image"].includes(type)||(!type&&!p))return`<img loading="lazy" class="work-media-image" src="${esc(url)}" alt="${esc(w?.title||"Робота СТО")}">`;
+if(p==="youtube"||p==="youtube_nocookie"){const id=yt(url);if(!id)return`<div class="work-media-placeholder">Некоректне YouTube-посилання</div>`;const host=p==="youtube_nocookie"?"https://www.youtube-nocookie.com/embed/":"https://www.youtube.com/embed/";return`<div class="work-media-video"><iframe loading="lazy" src="${host}${encodeURIComponent(id)}?rel=0" title="${esc(w?.title||"Відео роботи")}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`}
+if(p==="instagram"){const src=ig(url);if(!src)return`<div class="work-media-placeholder">Некоректне Instagram-посилання</div>`;return`<div class="work-media-video"><iframe loading="lazy" src="${src}" title="${esc(w?.title||"Instagram Reel")}" allowfullscreen></iframe></div>`}
+if(p==="html5"){if(!/^https:\/\//i.test(url))return`<div class="work-media-placeholder">HTML5 потребує HTTPS URL</div>`;return`<video class="work-media-video-html5" controls preload="metadata" playsinline src="${esc(url)}"></video>`}
+return`<a class="work-media-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Відкрити відео</a>`}
+return{render}})();
