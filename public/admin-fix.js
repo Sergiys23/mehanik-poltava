@@ -201,4 +201,125 @@
       }
     };
   };
+
+
+  // ==============================
+  // SUPERADMIN SELECTIVE RESET UI
+  // ==============================
+  function installResetTab() {
+    const nav = document.querySelector(".admin-tabs");
+    if (!nav || document.querySelector("#resetTabBtnFixed")) return;
+
+    const b = document.createElement("button");
+    b.type = "button";
+    b.id = "resetTabBtnFixed";
+    b.className = "btn";
+    b.textContent = "🧹 Скидання";
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".admin-tabs button").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      window.renderResetPanel();
+    });
+    nav.appendChild(b);
+  }
+
+  window.renderResetPanel = async function renderResetPanel() {
+    const panel = document.querySelector("#panel");
+    const content = document.querySelector("#content");
+    if (!content) return;
+
+    content.innerHTML = `
+      <div class="admin-card">
+        <h2>🧹 Центр безпечного скидання</h2>
+        <p class="muted">
+          Виберіть тільки ті дані, які потрібно очистити перед передачею сайту.
+          Послуги, ціни, механіки, OAuth та системні налаштування не видаляються.
+        </p>
+      </div>
+      <div id="resetList" class="admin-list">
+        <div class="admin-card">⏳ Завантаження розділів…</div>
+      </div>`;
+
+    const scopes = [
+      ["bookings", "📅 Заявки", "Нові заявки та їхні службові зв'язки"],
+      ["archive", "🗂 Архів", "Архівовані заявки"],
+      ["completed", "🏁 Виконані роботи", "Виконані роботи, час та статистичні записи"],
+      ["reviews", "⭐ Відгуки", "Відгуки клієнтів"],
+      ["blocks", "⛔ Блокування", "Заблоковані часові слоти"],
+      ["logs", "📋 Журнал", "Адміністративний журнал, крім запису самого reset"],
+      ["media", "☁️ Медіа", "Медіа та пов'язані записи"],
+      ["works", "🔧 Роботи", "Опубліковані виконані роботи та їхні прив'язки"],
+      ["all_operational", "🧹 УСІ операційні дані", "Усе перелічене вище. Каталог і системні налаштування залишаються."]
+    ];
+
+    const list = document.querySelector("#resetList");
+    list.innerHTML = scopes.map(([id,title,desc]) => `
+      <article class="admin-card">
+        <h3>${esc2(title)}</h3>
+        <p class="muted">${esc2(desc)}</p>
+        <div class="admin-actions">
+          <button type="button" class="btn secondary" data-reset-preview="${esc2(id)}">🔎 Перевірити</button>
+          <button type="button" class="btn danger" data-reset-execute="${esc2(id)}">🗑 Стерти</button>
+        </div>
+        <div id="reset-preview-${esc2(id)}" style="margin-top:10px"></div>
+      </article>`).join("");
+
+    list.querySelectorAll("[data-reset-preview]").forEach(btn => {
+      btn.addEventListener("click", () => resetPreviewFixed(btn.dataset.resetPreview));
+    });
+    list.querySelectorAll("[data-reset-execute]").forEach(btn => {
+      btn.addEventListener("click", () => resetExecuteFixed(btn.dataset.resetExecute));
+    });
+  };
+
+  async function resetPreviewFixed(scope) {
+    try {
+      const d = await api(`/api/admin/reset?scope=${encodeURIComponent(scope)}`);
+      const el = document.querySelector(`#reset-preview-${scope}`);
+      if (!el) return;
+      el.innerHTML = `
+        <div class="admin-card">
+          <b>Буде видалено:</b>
+          <pre style="white-space:pre-wrap;overflow:auto">${esc2(JSON.stringify(d.counts || {}, null, 2))}</pre>
+          <span class="muted">Захищено: ${esc2((d.protected || []).join(", "))}</span>
+        </div>`;
+    } catch (e) {
+      msg(e.message, true);
+    }
+  }
+
+  async function resetExecuteFixed(scope) {
+    try {
+      const preview = await api(`/api/admin/reset?scope=${encodeURIComponent(scope)}`);
+      const counts = JSON.stringify(preview.counts || {}, null, 2);
+      if (!confirm(`Скидання: ${scope}\n\nБуде видалено:\n${counts}\n\nПродовжити?`)) return;
+
+      const password = prompt("Введіть пароль SUPERADMIN:");
+      if (password === null) return;
+
+      const expected = `RESET:${scope}`;
+      const confirmation = prompt(`Введіть точно:\n${expected}`);
+      if (confirmation !== expected) {
+        msg("Скидання скасовано: неправильне підтвердження.", true);
+        return;
+      }
+
+      const d = await api("/api/admin/reset", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "execute",
+          scope,
+          password,
+          confirm: confirmation
+        })
+      });
+
+      msg(d.message || "Скидання виконано");
+      await window.renderResetPanel();
+    } catch (e) {
+      msg(e.message, true);
+    }
+  }
+
+  installResetTab();
 })();
