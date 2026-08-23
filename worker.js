@@ -167,11 +167,6 @@ async function adminReset(req,e,actor){
     return J({error:"Повторна перевірка пароля superadmin не пройдена"},403);
   }
 
-  const expectedConfirm=`RESET:${scope}`;
-  if(String(b.confirm||"")!==expectedConfirm){
-    return J({error:`Для підтвердження введіть ${expectedConfirm}`},400);
-  }
-
   const before=await resetCounts(e.DB,scope);
   const scopes=scope==="all_operational"?[
     "bookings","archive","completed","reviews","blocks","media","works","logs"
