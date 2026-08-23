@@ -292,25 +292,15 @@
     try {
       const preview = await api(`/api/admin/reset?scope=${encodeURIComponent(scope)}`);
       const counts = JSON.stringify(preview.counts || {}, null, 2);
-      if (!confirm(`Скидання: ${scope}\n\nБуде видалено:\n${counts}\n\nПродовжити?`)) return;
-
-      const password = prompt("Введіть пароль SUPERADMIN:");
+      const password = prompt(`Введіть пароль SUPERADMIN для скидання «${scope}»:\n\nБуде видалено:\n${counts}`);
       if (password === null) return;
-
-      const expected = `RESET:${scope}`;
-      const confirmation = prompt(`Введіть точно:\n${expected}`);
-      if (confirmation !== expected) {
-        msg("Скидання скасовано: неправильне підтвердження.", true);
-        return;
-      }
 
       const d = await api("/api/admin/reset", {
         method: "POST",
         body: JSON.stringify({
           action: "execute",
           scope,
-          password,
-          confirm: confirmation
+          password
         })
       });
 
