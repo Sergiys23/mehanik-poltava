@@ -3,8 +3,8 @@ const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"']/g,c=>
 async function api(u,o={}){const h={...(o.headers||{})};if(!(o.body instanceof FormData)&&!h["content-type"])h["content-type"]="application/json";const r=await fetch(u,{...o,credentials:"same-origin",headers:h}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||(r.status===404?`API маршрут не знайдено: ${u}`:r.status===403?"Недостатньо прав для цієї операції":`HTTP ${r.status}`));return d}
 function msg(t,e=false){$("#msg").innerHTML=`<div class="message ${e?"error":"success"}">${esc(t)}</div>`}
 function postBooking(id,action,extra={}){return api("/api/admin/bookings",{method:"POST",body:JSON.stringify({id,action,...extra})})}
-async function login(){try{const d=await api("/api/auth/login",{method:"POST",body:JSON.stringify({username:$("#loginUser").value.trim(),password:$("#loginPass").value})});role=d.role;$("#role").textContent=role;$("#login").classList.add("hidden");$("#panel").classList.remove("hidden");load()}catch(e){$("#loginMsg").textContent="❌ "+e.message}}
-async function load(){try{clearInterval(timerInterval);const u={analytics:"/api/admin/analytics",market:"/api/admin/market",bookings:"/api/admin/bookings",history:"/api/admin/history",completed:"/api/admin/completed-works",reviews:"/api/admin/reviews",works:"/api/admin/works",services:"/api/admin/services",mechanics:"/api/admin/mechanics",logs:"/api/admin/logs",blocks:"/api/admin/blocks",ai:null},f={analytics:renderAnalytics,market:renderMarket,bookings:renderBookings,history:renderHistory,completed:renderCompletedWorks,reviews:renderReviews,works:renderWorks,services:renderServices,mechanics:renderMechanics,logs:renderLogs,blocks:renderBlocks};if(tab==="ai"){await renderAI();return}if(!u[tab])throw Error("Невідома вкладка");await f[tab](await api(u[tab]));}catch(e){msg(e.message,true)}}
+async function login(){try{const d=await api("/api/auth/login",{method:"POST",body:JSON.stringify({username:$("#loginUser").value.trim(),password:$("#loginPass").value})});role=d.role;$("#role").textContent=role;const rb=$("#resetTabBtn");if(rb)rb.style.display=role==="superadmin"?"inline-flex":"none";$("#login").classList.add("hidden");$("#panel").classList.remove("hidden");load()}catch(e){$("#loginMsg").textContent="❌ "+e.message}}
+async function load(){try{clearInterval(timerInterval);const u={analytics:"/api/admin/analytics",market:"/api/admin/market",bookings:"/api/admin/bookings",history:"/api/admin/history",completed:"/api/admin/completed-works",reviews:"/api/admin/reviews",works:"/api/admin/works",services:"/api/admin/services",mechanics:"/api/admin/mechanics",logs:"/api/admin/logs",blocks:"/api/admin/blocks",reset:"/api/admin/reset",ai:null},f={analytics:renderAnalytics,market:renderMarket,bookings:renderBookings,history:renderHistory,completed:renderCompletedWorks,reviews:renderReviews,works:renderWorks,services:renderServices,mechanics:renderMechanics,logs:renderLogs,blocks:renderBlocks,reset:renderReset};if(tab==="ai"){await renderAI();return}if(!u[tab])throw Error("Невідома вкладка");await f[tab](await api(u[tab]));}catch(e){msg(e.message,true)}}
 function fmtTime(sec){sec=Math.max(0,Math.floor(Number(sec)||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`}
 function updateTimers(){document.querySelectorAll("[data-timer-id]").forEach(el=>{let elapsed=Number(el.dataset.elapsed||0);if(el.dataset.running==="1"&&el.dataset.started)elapsed+=Math.max(0,Math.floor((Date.now()-Date.parse(el.dataset.started))/1000));const total=Number(el.dataset.duration||60)*60,rem=Math.max(0,total-elapsed),e=el.querySelector("[data-elapsed]"),r=el.querySelector("[data-remaining]"),bar=el.querySelector("[data-progress]"),label=el.querySelector("[data-state]");if(e)e.textContent=fmtTime(Math.min(total,elapsed));if(r)r.textContent=fmtTime(rem);if(bar)bar.style.width=`${Math.min(100,total?elapsed/total*100:0)}%`;if(label)label.textContent=rem===0?"ЧАС ВИЙШОВ · ЗАВЕРШЕНО":el.dataset.running==="1"?"В РОБОТІ":el.dataset.finished==="1"?"ЗАВЕРШЕНО":el.dataset.paused==="1"?"ПРИЗУПИНЕНО":"НЕ РОЗПОЧАТО";if(rem===0&&el.dataset.running==="1"&&el.dataset.autofinished!=="1"){el.dataset.autofinished="1";workAct(Number(el.dataset.timerId),"finish_work")}})}
 function timerBox(b){const finished=b.work_status==="finished"||b.status==="completed";return `<div class="admin-card" data-timer-id="${b.id}" data-elapsed="${b.elapsed_seconds||0}" data-started="${esc(b.work_started_at||"")}" data-running="${b.work_status==="running"?1:0}" data-paused="${b.work_status==="paused"?1:0}" data-finished="${finished?1:0}" data-duration="${b.duration||60}"><h4>⏱ Відлік часу роботи</h4><div style="display:flex;gap:18px;flex-wrap:wrap;font-size:18px"><span>Відпрацьовано: <b data-elapsed>${fmtTime(b.elapsed_seconds)}</b></span><span>Залишилось: <b data-remaining>${fmtTime(b.remaining_seconds)}</b></span><span data-state>${finished?"🏁 РОБОТУ ЗАВЕРШЕНО":b.work_status==="running"?"В РОБОТІ":b.work_status==="paused"?"ПРИЗУПИНЕНО":"НЕ РОЗПОЧАТО"}</span></div><div style="height:8px;background:#252a31;border-radius:99px;overflow:hidden;margin:10px 0"><div data-progress style="height:100%;width:${Math.min(100,((b.elapsed_seconds||0)/(Number(b.duration||60)*60))*100)}%;background:#ffbd00"></div></div><div class="admin-actions">${!finished&&b.work_status!=="running"?`<button class="btn primary" onclick="workAct(${b.id},'start_work')">▶️ Почати</button>`:""}${!finished&&b.work_status==="running"?`<button class="btn secondary" onclick="workAct(${b.id},'pause_work')">⏸ Пауза</button>`:""}${!finished?`<button class="btn primary" onclick="workAct(${b.id},'finish_work')">✔ Завершити роботу</button>`:""}${!finished?`<button class="btn secondary" onclick="workAct(${b.id},'reset_work')">↺ Скинути</button>`:""}</div></div>`}
@@ -70,6 +70,57 @@ async function renderMarket(){
  }
 }
 async function applyPrice(id){if(role!=="superadmin"||!confirm("Застосувати рекомендовану ціну?"))return;try{const r=await api("/api/admin/market",{method:"POST",body:JSON.stringify({action:"apply_price",id})});msg(r.message);load()}catch(e){msg(e.message,true)}}
+
+async function renderReset(){
+ if(role!=="superadmin"){
+  $("#content").innerHTML=`<div class="admin-card"><h2>🔒 Скидання даних</h2><p>Доступ дозволений лише superadmin.</p></div>`;
+  return;
+ }
+ const scopes=[
+  ["bookings","📅 Заявки","Нові заявки, призначення та пов'язані Telegram-повідомлення"],
+  ["archive","🗂 Архів","Архівовані заявки"],
+  ["completed","🏁 Виконані роботи","Виконані роботи, час, статистика та Telegram-записи"],
+  ["reviews","⭐ Відгуки","Відгуки клієнтів"],
+  ["blocks","⛔ Блокування","Заблоковані часові слоти"],
+  ["logs","📋 Журнал","Журнал адміністратора, крім самого запису про reset"],
+  ["media","☁️ Медіа","Медіа-об'єкти та їхні записи"],
+  ["works","🔧 Роботи","Опубліковані виконані роботи та прив'язані медіа"],
+  ["all_operational","🧹 УСІ операційні дані","Усе вище, але НЕ послуги, ціни, механіки, OAuth або налаштування"]
+ ];
+ $("#content").innerHTML=`
+ <div class="admin-card">
+  <h2>🧹 Центр безпечного скидання</h2>
+  <p class="muted">Тут можна підготувати сайт до передачі. Скидання вибіркове. Каталог послуг, ціни, механіки, Google OAuth та системні налаштування захищені.</p>
+  <div class="admin-list">${scopes.map(([id,title,desc])=>`<article class="admin-card" style="margin:0 0 10px">
+   <h3>${title}</h3><p class="muted">${desc}</p>
+   <div class="admin-actions"><button class="btn secondary" onclick="resetPreview('${id}')">🔎 Перевірити</button><button class="btn danger" onclick="resetExecute('${id}')">🗑 Стерти</button></div>
+   <div id="reset-preview-${id}" style="margin-top:10px"></div>
+  </article>`).join("")}</div>
+ </div>`;
+}
+async function resetPreview(scope){
+ try{
+  const d=await api(`/api/admin/reset?scope=${encodeURIComponent(scope)}`);
+  const el=document.querySelector(`#reset-preview-${scope}`);
+  if(el)el.innerHTML=`<div class="admin-card"><b>Буде видалено:</b><pre style="white-space:pre-wrap">${esc(JSON.stringify(d.counts,null,2))}</pre><span class="muted">Захищено: ${esc((d.protected||[]).join(", "))}</span></div>`;
+ }catch(e){msg(e.message,true)}
+}
+async function resetExecute(scope){
+ if(role!=="superadmin")return msg("Потрібні права superadmin",true);
+ try{
+  const preview=await api(`/api/admin/reset?scope=${encodeURIComponent(scope)}`);
+  const counts=JSON.stringify(preview.counts,null,2);
+  const ok=confirm(`Скидання: ${scope}\n\nПеред видаленням буде очищено:\n${counts}\n\nПродовжити?`);
+  if(!ok)return;
+  const password=prompt("Для продовження введіть пароль SUPERADMIN:");
+  if(password===null)return;
+  const confirmText=prompt(`Останній захист. Введіть точно:\nRESET:${scope}`);
+  if(confirmText===null)return;
+  const d=await api("/api/admin/reset",{method:"POST",body:JSON.stringify({action:"execute",scope,password,confirm:confirmText})});
+  msg(`${d.message}. Дані до: ${JSON.stringify(d.before)}; після: ${JSON.stringify(d.after)}`);
+  await load();
+ }catch(e){msg(e.message,true)}
+}
 
 function renderLogs(a){$("#content").innerHTML=`<div class="admin-card">${a.map(x=>`<div class="log-row">${esc(x.created_at)} · <b>${esc(x.actor)}</b> · ${esc(x.action)} · ${esc(x.target)} · ${esc(x.details)}</div>`).join("")||"Журнал порожній."}</div>`}
 function renderBlocks(a){$("#content").innerHTML=`<form id="blockForm" class="form admin-form"><h2>Заблокувати час</h2><input type="date" name="date" required><input type="time" name="time" required><input name="reason" placeholder="Причина"><button class="btn primary">Заблокувати</button></form><div class="admin-list">${a.map(x=>`<article class="admin-card">${esc(x.date)} · ${esc(x.time)} · ${esc(x.reason||"")} <button class="btn danger" onclick="blockDelete(${x.id})">Видалити</button></article>`).join("")}</div>`;$("#blockForm").onsubmit=async e=>{e.preventDefault();try{const d=Object.fromEntries(new FormData(e.target)),r=await api("/api/admin/blocks",{method:"POST",body:JSON.stringify(d)});msg(r.message);load()}catch(x){msg(x.message,true)}}}
