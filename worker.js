@@ -96,6 +96,138 @@ async function adminBookings(req,e,actor){if(req.method==="GET"){const{results}=
  return J({error:"Невідома дія"},400)}
 async function adminServices(req,e,actor){if(req.method!=="GET"&&actor!=="superadmin")return J({error:"Змінювати ціни може лише superadmin"},403);if(req.method==="GET"){const{results}=await e.DB.prepare(`SELECT * FROM service_catalog ORDER BY sort_order,id`).all();return J(results||[])}let b;try{b=await req.json()}catch{return J({error:"Некоректний запит"},400)}if(req.method==="POST"){const name=String(b.name||"").trim(),dur=Number(b.duration_minutes),price=b.price_from===""||b.price_from==null?null:Number(b.price_from);if(!name||name.length>120||!Number.isFinite(dur)||dur<15||dur>1440||price!==null&&(!Number.isFinite(price)||price<0))return J({error:"Некоректна ціна або норма часу"},400);await e.DB.prepare(`INSERT INTO service_catalog(name,description,price_from,duration_minutes,active,sort_order) VALUES(?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET description=excluded.description,price_from=excluded.price_from,duration_minutes=excluded.duration_minutes,active=excluded.active,sort_order=excluded.sort_order`).bind(name,String(b.description||"").slice(0,1000),price,dur,b.active===false?0:1,Number(b.sort_order)||0).run();return J({ok:true,message:"Послугу збережено"})}if(req.method==="DELETE"){await e.DB.prepare(`UPDATE service_catalog SET active=0 WHERE id=?`).bind(Number(new URL(req.url).searchParams.get("id"))).run();return J({ok:true,message:"Послугу вимкнено"})}return J({error:"Method not allowed"},405)}
 async function adminMechanics(req,e){if(req.method==="GET"){const{results}=await e.DB.prepare(`SELECT m.*,COALESCE(GROUP_CONCAT(ms.service_id), '') service_ids FROM mechanics m LEFT JOIN mechanic_services ms ON ms.mechanic_id=m.id GROUP BY m.id ORDER BY m.id`).all();return J((results||[]).map(x=>({...x,service_ids:String(x.service_ids||"").split(",").filter(Boolean).map(Number)})))}let b;try{b=await req.json()}catch{return J({error:"Некоректний запит"},400)}const name=String(b.name||"").trim();if(!name||name.length>100)return J({error:"Вкажіть коректне ім'я"},400);let id=Number(b.id)||0,created=false;if(id)await e.DB.prepare(`UPDATE mechanics SET name=?,role=?,active=? WHERE id=?`).bind(name,b.role==="chief"?"chief":"mechanic",b.active===false?0:1,id).run();else{id=Number((await e.DB.prepare(`INSERT INTO mechanics(name,role,active) VALUES(?,?,1)`).bind(name,b.role==="chief"?"chief":"mechanic").run()).meta.last_row_id);created=true}if(Array.isArray(b.service_ids)){const valid=(await e.DB.prepare(`SELECT id FROM service_catalog WHERE active=1 AND name<>?`).bind("Uklon").all()).results||[];const allowed=new Set(valid.map(x=>Number(x.id)));const ids=[...new Set(b.service_ids.map(Number).filter(x=>allowed.has(x)))];await e.DB.prepare(`DELETE FROM mechanic_services WHERE mechanic_id=?`).bind(id).run();for(const sid of ids)await e.DB.prepare(`INSERT OR IGNORE INTO mechanic_services(mechanic_id,service_id) VALUES(?,?)`).bind(id,sid).run()}else if(created){const all=(await e.DB.prepare(`SELECT id FROM service_catalog WHERE active=1 AND name<>?`).bind("Uklon").all()).results||[];for(const s of all)await e.DB.prepare(`INSERT OR IGNORE INTO mechanic_services(mechanic_id,service_id) VALUES(?,?)`).bind(id,Number(s.id)).run()}return J({ok:true,message:"Механіка та його послуги збережено"})}
+const RESET_SCOPES=new Set(["bookings","archive","completed","reviews","blocks","logs","media","works","all_operational"]);
+const RESET_TABLES={
+  bookings:["booking_mechanics","booking_telegram","bookings"],
+  archive:["booking_history"],
+  completed:["completed_work_telegram","completed_works"],
+  reviews:["review_telegram","reviews"],
+  blocks:["blocked_slots"],
+  logs:["admin_logs"],
+  works:["works"],
+  media:["drive_media"]
+};
+
+async function resetCounts(db,scope){
+  const scopes=scope==="all_operational"?[
+    "bookings","archive","completed","reviews","blocks","logs","media","works"
+  ]:[scope];
+  const out={};
+  for(const s of scopes){
+    out[s]={};
+    for(const table of RESET_TABLES[s]){
+      const row=await db.prepare(`SELECT COUNT(*) n FROM ${table}`).first();
+      out[s][table]=Number(row?.n||0);
+    }
+  }
+  return out;
+}
+
+async function resetDeleteTelegram(e,rows){
+  if(!e.TELEGRAM_BOT_TOKEN||!e.TELEGRAM_CHAT_ID)return;
+  for(const x of rows||[]){
+    if(!x?.message_id)continue;
+    try{await tg(e,"deleteMessage",{chat_id:e.TELEGRAM_CHAT_ID,message_id:Number(x.message_id)})}catch{}
+  }
+}
+
+async function adminReset(req,e,actor){
+  if(actor!=="superadmin")return J({error:"Потрібні права superadmin"},403);
+
+  let b={};
+  if(req.method!=="GET"){
+    try{b=await req.json()}catch{return J({error:"Некоректний JSON"},400)}
+  }
+
+  const scope=String(b.scope||new URL(req.url).searchParams.get("scope")||"");
+  if(!RESET_SCOPES.has(scope)){
+    return J({
+      error:"Невідомий розділ скидання",
+      allowed:[...RESET_SCOPES]
+    },400);
+  }
+
+  if(req.method==="GET"||b.action==="preview"){
+    return J({
+      ok:true,
+      mode:"preview",
+      scope,
+      counts:await resetCounts(e.DB,scope),
+      protected:["service_catalog","mechanics","mechanic_services","google_oauth","market_sources","market_snapshots","currency_rates","price_recommendations"]
+    });
+  }
+
+  if(req.method!=="POST"||b.action!=="execute"){
+    return J({error:"Для очищення потрібен POST action=execute"},405);
+  }
+
+  const password=String(b.password||"");
+  const expected=String(e.SUPERADMIN_PASSWORD||"");
+  if(!expected||password!==expected){
+    return J({error:"Повторна перевірка пароля superadmin не пройдена"},403);
+  }
+
+  const expectedConfirm=`RESET:${scope}`;
+  if(String(b.confirm||"")!==expectedConfirm){
+    return J({error:`Для підтвердження введіть ${expectedConfirm}`},400);
+  }
+
+  const before=await resetCounts(e.DB,scope);
+  const scopes=scope==="all_operational"?[
+    "bookings","archive","completed","reviews","blocks","media","works","logs"
+  ]:[scope];
+
+  // Capture linked Telegram messages before removing mappings.
+  if(scopes.includes("bookings")){
+    const rows=(await e.DB.prepare(`SELECT message_id FROM booking_telegram`).all()).results||[];
+    await resetDeleteTelegram(e,rows);
+  }
+  if(scopes.includes("completed")){
+    const rows=(await e.DB.prepare(`SELECT message_id FROM completed_work_telegram`).all()).results||[];
+    await resetDeleteTelegram(e,rows);
+  }
+  if(scopes.includes("reviews")){
+    const rows=(await e.DB.prepare(`SELECT message_id FROM review_telegram`).all()).results||[];
+    await resetDeleteTelegram(e,rows);
+  }
+
+  // Delete media objects first. DB metadata is removed only after the object deletion attempt.
+  if(scopes.includes("media")||scopes.includes("works")){
+    const ids=new Set();
+    if(scopes.includes("media")){
+      const rows=(await e.DB.prepare(`SELECT id FROM drive_media`).all()).results||[];
+      for(const r of rows)ids.add(String(r.id));
+    }
+    if(scopes.includes("works")){
+      const rows=(await e.DB.prepare(`SELECT media_url FROM works WHERE media_url LIKE '%/api/media/%'`).all()).results||[];
+      for(const r of rows){const m=String(r.media_url||"").match(/\/api\/media\/([A-Za-z0-9_-]+)$/);if(m)ids.add(m[1])}
+    }
+    for(const id of ids){try{await driveDeleteById(e,id)}catch(err){console.log("reset media delete",String(err?.message||err))}}
+  }
+
+  const statements=[];
+  for(const s of scopes){
+    for(const table of RESET_TABLES[s])statements.push(e.DB.prepare(`DELETE FROM ${table}`));
+  }
+  if(statements.length)await e.DB.batch(statements);
+
+  // Preserve one security record even when logs were requested for reset.
+  try{
+    await e.DB.prepare(`INSERT INTO admin_logs(actor,action,target,details) VALUES(?,?,?,?)`)
+      .bind(actor,"reset",scope,JSON.stringify({before})).run();
+  }catch{}
+
+  const after=await resetCounts(e.DB,scope);
+  return J({
+    ok:true,
+    mode:"execute",
+    scope,
+    message:`Скидання «${scope}» виконано`,
+    before,
+    after
+  });
+}
+
 async function adminReviews(req,e){if(req.method==="GET"){const{results}=await e.DB.prepare(`SELECT id,name,rating,text,approved,created_at FROM reviews ORDER BY created_at DESC`).all();return J((results||[]).map(x=>({...x,published:Number(x.approved)})))}let b;try{b=await req.json()}catch{return J({error:"Некоректний запит"},400)}if(b.action==="approve"||b.action==="hide"){await e.DB.prepare(`UPDATE reviews SET approved=? WHERE id=?`).bind(b.action==="approve"?1:0,Number(b.id)).run();return J({ok:true,message:"Відгук оновлено"})}if(b.action==="delete"){await e.DB.prepare(`DELETE FROM reviews WHERE id=?`).bind(Number(b.id)).run();return J({ok:true,message:"Відгук видалено"})}return J({error:"Невідома дія"},400)}
 async function adminWorks(req,e){if(req.method==="GET"){const{results}=await e.DB.prepare(`SELECT id,title,car,description,image_url,instagram_url,media_type,media_url,player_type,published FROM works ORDER BY created_at DESC`).all();return J(results||[])}if(req.method==="POST"){let b;try{b=await req.json()}catch{return J({error:"Некоректний запит"},400)}if(!String(b.title||"").trim())return J({error:"Вкажіть назву"},400);const mediaType=b.media_type==="video"?"video":"image",raw=String(b.media_url||b.image_url||"").trim();const mediaUrl=/^\/api\/media\/[A-Za-z0-9_-]+$/.test(raw)?new URL(raw,"https://mehanik.mehanik.workers.dev").href:safeUrl(raw);if(!mediaUrl)return J({error:"Вкажіть коректне URL медіа"},400);const allowedPlayers=new Set(["youtube","youtube_nocookie","instagram","html5"]);const playerType=mediaType==="video"&&allowedPlayers.has(String(b.player_type||""))?String(b.player_type):mediaType==="video"?"html5":"html5";await e.DB.prepare(`INSERT INTO works(title,car,description,image_url,instagram_url,media_type,media_url,player_type,published) VALUES(?,?,?,?,?,?,?,?,1)`).bind(String(b.title).trim(),String(b.car||"").slice(0,120),String(b.description||"").slice(0,2000),mediaType==="image"?mediaUrl:"",safeUrl(b.instagram_url),mediaType,mediaUrl,playerType).run();return J({ok:true,message:"Роботу додано"})}if(req.method==="DELETE"){const id=Number(new URL(req.url).searchParams.get("id"));if(!Number.isInteger(id)||id<=0)return J({error:"Невірний ID"},400);const row=await e.DB.prepare(`SELECT media_url FROM works WHERE id=?`).bind(id).first();if(row?.media_url){try{const m=String(row.media_url).match(/\/api\/media\/([A-Za-z0-9_-]+)$/);if(m)await driveDeleteById(e,m[1])}catch(err){console.error("drive delete on work delete",err)}}await e.DB.prepare(`DELETE FROM works WHERE id=?`).bind(id).run();return J({ok:true,message:"Роботу видалено"})}return J({error:"Method not allowed"},405)}
 async function completedWorks(req,e){if(req.method!=="GET")return J({error:"Method not allowed"},405);const url=new URL(req.url),mechanicId=Number(url.searchParams.get("mechanic_id")||0),limit=Math.min(500,Math.max(1,Number(url.searchParams.get("limit")||200)));const where=mechanicId>0?"WHERE cw.mechanic_id=?":"";const binds=mechanicId>0?[mechanicId]:[];const{results}=await e.DB.prepare(`SELECT cw.*,cw.price final_price FROM completed_works cw ${where} ORDER BY cw.completed_at DESC LIMIT ${limit}`).bind(...binds).all();return J(results||[])}
@@ -421,298 +553,327 @@ async function driveDelete(req,e){
   return J({ok:true,message:"Файл видалено з Google Drive та R2"});
 }
 async function mediaProxy(req,e,id){
-  const row=await e.DB.prepare(`SELECT id,drive_id,name,mime_type,size_bytes FROM drive_media WHERE id=?`).bind(id).first();
-  if(!row)return new Response("Media not found",{status:404,headers:base});
+  const row=await e.DB.prepare(
+    `SELECT id,drive_id,name,mime_type,size_bytes
+     FROM drive_media WHERE id=?`
+  ).bind(id).first();
 
+  if(!row){
+    return new Response("Media not found",{
+      status:404,
+      headers:base
+    });
+  }
+
+  const dbSize=Number(row.size_bytes||0);
+  const mime=String(row.mime_type||"application/octet-stream");
+  const filename=encodeURIComponent(row.name||id);
+
+  const mediaHeaders=()=>{
+    const h=new Headers(base);
+    h.set("content-type",mime);
+    h.set("accept-ranges","bytes");
+    h.set(
+      "cache-control",
+      "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
+    );
+    h.set(
+      "content-disposition",
+      `inline; filename*=UTF-8''${filename}`
+    );
+    h.set("x-content-type-options","nosniff");
+    return h;
+  };
+
+  // =========================================================
+  // CLOUDFLARE R2
+  // =========================================================
   if(e.MEDIA){
-    const range=req.headers.get("range");
     try{
-      if(range){
-        const m=range.match(/^bytes=(\d+)-(\d*)$/);
-        if(!m)return new Response("Invalid Range",{status:416,headers:{...base,"content-range":`bytes */${row.size_bytes||"*"}`}});
-        const start=Number(m[1]);
-        const end=m[2]?Number(m[2]):Math.max(start,Number(row.size_bytes||0)-1);
-        if(!Number.isFinite(start)||!Number.isFinite(end)||end<start||start>=Number(row.size_bytes||0)){
-          return new Response("Range Not Satisfiable",{status:416,headers:{...base,"content-range":`bytes */${row.size_bytes||"*"}`}});
+      const rangeHeader=req.headers.get("range");
+
+      // HEAD: браузеру достатньо метаданих, тіло не віддаємо.
+      if(req.method==="HEAD" && !rangeHeader){
+        const h=mediaHeaders();
+
+        if(dbSize>0){
+          h.set("content-length",String(dbSize));
         }
-        const obj=await e.MEDIA.get(`media/${id}`,{range:{offset:start,length:end-start+1}});
-        if(obj){
-          const h=new Headers(base);
-          h.set("content-type",row.mime_type||"application/octet-stream");
-          h.set("accept-ranges","bytes");
-          h.set("cache-control","public, max-age=86400, s-maxage=86400");
-          h.set("content-length",String(obj.size));
-          h.set("content-range",`bytes ${start}-${start+obj.size-1}/${row.size_bytes}`);
-          h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||id)}`);
-          return new Response(req.method==="HEAD"?null:obj.body,{status:206,headers:h});
-        }
-      }else{
-        const obj=await e.MEDIA.get(`media/${id}`);
-        if(obj){
-          const h=new Headers(base);
-          h.set("content-type",row.mime_type||obj.httpMetadata?.contentType||"application/octet-stream");
-          h.set("accept-ranges","bytes");
-          h.set("cache-control","public, max-age=86400, s-maxage=86400");
-          h.set("content-length",String(obj.size));
-          h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||id)}`);
-          return new Response(req.method==="HEAD"?null:obj.body,{status:200,headers:h});
-        }
+
+        return new Response(null,{
+          status:200,
+          headers:h
+        });
       }
+
+      if(rangeHeader){
+        /*
+         * Підтримуємо:
+         *   bytes=0-999
+         *   bytes=0-
+         *   bytes=-500000
+         *
+         * Android Chrome активно використовує Range.
+         */
+        const m=rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+
+        if(!m){
+          return new Response("Invalid Range",{
+            status:416,
+            headers:{
+              ...base,
+              "content-range":`bytes */${dbSize||"*"}`
+            }
+          });
+        }
+
+        let start;
+        let end;
+        let length;
+
+        if(m[1]===""){
+          // Suffix range: bytes=-N
+          const suffix=Number(m[2]);
+
+          if(
+            !Number.isFinite(suffix) ||
+            suffix<=0 ||
+            dbSize<=0
+          ){
+            return new Response("Range Not Satisfiable",{
+              status:416,
+              headers:{
+                ...base,
+                "content-range":`bytes */${dbSize||"*"}`
+              }
+            });
+          }
+
+          length=Math.min(suffix,dbSize);
+          start=dbSize-length;
+          end=dbSize-1;
+
+        }else{
+          start=Number(m[1]);
+
+          if(!Number.isFinite(start)||start<0){
+            return new Response("Range Not Satisfiable",{
+              status:416,
+              headers:{
+                ...base,
+                "content-range":`bytes */${dbSize||"*"}`
+              }
+            });
+          }
+
+          if(m[2]===""){
+            // bytes=N-
+            if(dbSize<=0 || start>=dbSize){
+              return new Response("Range Not Satisfiable",{
+                status:416,
+                headers:{
+                  ...base,
+                  "content-range":`bytes */${dbSize||"*"}`
+                }
+              });
+            }
+
+            end=dbSize-1;
+          }else{
+            end=Number(m[2]);
+
+            if(
+              !Number.isFinite(end) ||
+              dbSize<=0 ||
+              start>=dbSize ||
+              end<start
+            ){
+              return new Response("Range Not Satisfiable",{
+                status:416,
+                headers:{
+                  ...base,
+                  "content-range":`bytes */${dbSize||"*"}`
+                }
+              });
+            }
+
+            end=Math.min(end,dbSize-1);
+          }
+
+          length=end-start+1;
+        }
+
+        const obj=await e.MEDIA.get(
+          `media/${id}`,
+          {
+            range:{
+              offset:start,
+              length:length
+            }
+          }
+        );
+
+        if(!obj||!obj.body){
+          return new Response("Media not found",{
+            status:404,
+            headers:base
+          });
+        }
+
+        /*
+         * ВАЖЛИВО:
+         *
+         * obj.size = повний розмір R2-об'єкта.
+         * Для 206 Content-Length має бути розмір
+         * саме отриманого Range, а не всього MP4.
+         */
+        const actualStart=Number(
+          obj.range?.offset ?? start
+        );
+
+        const actualLength=Number(
+          obj.range?.length ?? length
+        );
+
+        const actualTotal=dbSize>0
+          ?dbSize
+          :Number(obj.size||0);
+
+        const actualEnd=actualStart+actualLength-1;
+
+        const h=mediaHeaders();
+
+        h.set(
+          "content-length",
+          String(actualLength)
+        );
+
+        h.set(
+          "content-range",
+          `bytes ${actualStart}-${actualEnd}/${actualTotal}`
+        );
+
+        if(obj.httpEtag){
+          h.set("etag",obj.httpEtag);
+        }
+
+        return new Response(
+          req.method==="HEAD"?null:obj.body,
+          {
+            status:206,
+            headers:h
+          }
+        );
+      }
+
+      // Звичайний GET без Range.
+      const obj=await e.MEDIA.get(`media/${id}`);
+
+      if(obj&&obj.body){
+        const h=mediaHeaders();
+
+        h.set(
+          "content-length",
+          String(obj.size||dbSize)
+        );
+
+        if(obj.httpEtag){
+          h.set("etag",obj.httpEtag);
+        }
+
+        return new Response(
+          req.method==="HEAD"?null:obj.body,
+          {
+            status:200,
+            headers:h
+          }
+        );
+      }
+
     }catch(err){
-      console.log("R2 media read failed",String(err?.message||err));
+      console.log(
+        "R2 media read failed",
+        String(err?.message||err)
+      );
     }
   }
 
-  // Backward-compatible fallback for old records or a temporarily unavailable R2 object.
-  const driveId=String(row.drive_id||id);
+  // =========================================================
+  // GOOGLE DRIVE FALLBACK
+  // =========================================================
+
+  const driveId=String(row.drive_id||"");
+
+  if(!driveId){
+    return new Response("Media unavailable",{
+      status:502,
+      headers:base
+    });
+  }
+
   try{
     const token=await googleAccessToken(e);
-    const headers={Authorization:`Bearer ${token}`};
-    const range=req.headers.get("range"); if(range)headers.Range=range;
-    const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(driveId)}?alt=media`,{method:"GET",headers});
-    if(!r.ok)return new Response("Media unavailable",{status:r.status,headers:base});
-    const h=new Headers(base);
-    h.set("content-type",r.headers.get("content-type")||row.mime_type||"application/octet-stream");
-    h.set("cache-control","private, no-store");
-    h.set("accept-ranges","bytes");
-    if(r.headers.get("content-range"))h.set("content-range",r.headers.get("content-range"));
-    if(r.headers.get("content-length"))h.set("content-length",r.headers.get("content-length"));
-    h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||id)}`);
-    return new Response(req.method==="HEAD"?null:r.body,{status:r.status,headers:h});
-  }catch(err){
-    return new Response("Media unavailable",{status:502,headers:base});
-  }
-}
 
-// ============================================================
-// SUPERADMIN SELECTIVE DATA RESET
-// Безпечне очищення робочих даних перед передачею сайту.
-// НЕ видаляє каталог послуг, механіків, налаштування Google OAuth,
-// курс USD/ринкові дані та сам Worker.
-// ============================================================
-const RESET_SCOPES = new Set([
-  "bookings",
-  "archive",
-  "completed",
-  "reviews",
-  "blocks",
-  "logs",
-  "media",
-  "all_operational"
-]);
-
-const RESET_CONFIRM = scope => `RESET:${scope}`;
-
-function resetOriginAllowed(req){
-  const origin=req.headers.get("origin");
-  if(!origin)return true;
-  try{
-    return new URL(origin).origin===new URL(req.url).origin;
-  }catch{
-    return false;
-  }
-}
-
-async function resetPreview(e,scope){
-  const q=async sql=>{
-    const r=await e.DB.prepare(sql).first();
-    return Number(r?.n||0);
-  };
-
-  const out={
-    bookings:await q(`SELECT COUNT(*) n FROM bookings`),
-    archive:await q(`SELECT COUNT(*) n FROM booking_history`),
-    completed:await q(`SELECT COUNT(*) n FROM completed_works`),
-    reviews:await q(`SELECT COUNT(*) n FROM reviews`),
-    blocks:await q(`SELECT COUNT(*) n FROM blocked_slots`),
-    logs:await q(`SELECT COUNT(*) n FROM admin_logs`),
-    media:await q(`SELECT COUNT(*) n FROM drive_media`)
-  };
-
-  if(scope==="all_operational"){
-    return {
-      scope,
-      counts:out,
-      total:Object.values(out).reduce((a,b)=>a+b,0),
-      note:"Буде очищено лише робочі дані. Каталог послуг, механіки, OAuth і ринкові дані залишаться."
+    const headers={
+      Authorization:`Bearer ${token}`
     };
-  }
 
-  return {
-    scope,
-    counts:{[scope]:out[scope]},
-    total:out[scope],
-    note:"Інші дані не будуть змінені."
-  };
-}
+    const range=req.headers.get("range");
 
-async function resetData(req,e,actor){
-  if(actor!=="superadmin"){
-    return J({error:"Потрібні права superadmin"},403);
-  }
-
-  if(!resetOriginAllowed(req)){
-    return J({error:"Недозволене джерело запиту"},403);
-  }
-
-  let b;
-  try{ b=await req.json(); }
-  catch{ return J({error:"Некоректний JSON"},400); }
-
-  const scope=String(b.scope||"").trim();
-
-  if(!RESET_SCOPES.has(scope)){
-    return J({
-      error:"Невідомий розділ для скидання",
-      allowed:[...RESET_SCOPES]
-    },400);
-  }
-
-  // Безпечний режим: спочатку preview.
-  if(b.action==="preview"){
-    return J({
-      ok:true,
-      preview:await resetPreview(e,scope)
-    });
-  }
-
-  if(b.action!=="execute"){
-    return J({
-      error:"Потрібно action=preview або action=execute"
-    },400);
-  }
-
-  // Додатковий захист: повторна перевірка пароля superadmin.
-  // Навіть викрадена активна сесія не повинна одразу дозволяти wipe.
-  const password=String(b.password||"");
-
-  if(!e.SUPERADMIN_PASSWORD || password!==String(e.SUPERADMIN_PASSWORD)){
-    return J({error:"Повторна авторизація superadmin не пройдена"},403);
-  }
-
-  if(String(b.confirm||"")!==RESET_CONFIRM(scope)){
-    return J({
-      error:"Неправильне підтвердження",
-      required:RESET_CONFIRM(scope)
-    },400);
-  }
-
-  const preview=await resetPreview(e,scope);
-
-  // Ніколи не дозволяємо випадковий DELETE усіх таблиць.
-  const scopes=scope==="all_operational"
-    ?["bookings","archive","completed","reviews","blocks","logs","media"]
-    :[scope];
-
-  try{
-    for(const item of scopes){
-
-      if(item==="bookings"){
-        // Видаляємо службові Telegram-зв'язки та призначення.
-        await e.DB.batch([
-          e.DB.prepare(`DELETE FROM booking_telegram`),
-          e.DB.prepare(`DELETE FROM booking_mechanics`),
-          e.DB.prepare(`DELETE FROM bookings`)
-        ]);
-      }
-
-      if(item==="archive"){
-        await e.DB.prepare(`DELETE FROM booking_history`).run();
-      }
-
-      if(item==="completed"){
-        // Спочатку Telegram mapping, потім ledger.
-        await e.DB.batch([
-          e.DB.prepare(`DELETE FROM completed_work_telegram`),
-          e.DB.prepare(`DELETE FROM completed_works`)
-        ]);
-
-        // Не залишаємо заявки у статусі "completed", якщо їхній
-        // ledger виконаних робіт був очищений.
-        await e.DB.prepare(`
-          UPDATE bookings
-          SET status='new',
-              work_started_at=NULL,
-              work_finished_at=NULL,
-              work_elapsed_seconds=0,
-              work_status='not_started'
-          WHERE status='completed'
-        `).run();
-      }
-
-      if(item==="reviews"){
-        await e.DB.batch([
-          e.DB.prepare(`DELETE FROM review_telegram`),
-          e.DB.prepare(`DELETE FROM reviews`)
-        ]);
-      }
-
-      if(item==="blocks"){
-        await e.DB.prepare(`DELETE FROM blocked_slots`).run();
-      }
-
-      if(item==="logs"){
-        // Сам запис про reset залишимо після очищення.
-        await e.DB.prepare(`DELETE FROM admin_logs`).run();
-      }
-
-      if(item==="media"){
-        // Видаляємо об'єкти і з R2, і з Google Drive.
-        const rows=(await e.DB.prepare(
-          `SELECT id FROM drive_media`
-        ).all()).results||[];
-
-        for(const row of rows){
-          try{
-            await driveDeleteById(e,String(row.id));
-          }catch(err){
-            console.log(
-              "Reset media delete failed",
-              String(err?.message||err)
-            );
-          }
-        }
-
-        // На випадок залишків у БД.
-        await e.DB.prepare(`DELETE FROM drive_media`).run();
-
-        // Не залишаємо на сайті посилання на вже видалене медіа.
-        await e.DB.prepare(`
-          UPDATE works
-          SET image_url='',
-              media_url='',
-              media_type='image'
-        `).run();
-      }
+    if(range){
+      headers.Range=range;
     }
 
-    await audit(
-      e.DB,
-      actor,
-      "selective_reset",
-      scope,
-      JSON.stringify(preview)
+    const r=await fetch(
+      `${GOOGLE_DRIVE_API}/files/${encodeURIComponent(driveId)}?alt=media`,
+      {
+        method:"GET",
+        headers
+      }
     );
 
-    return J({
-      ok:true,
-      scope,
-      reset:scopes,
-      preview,
-      message:"Вибране робоче сховище очищено. Налаштування та довідники збережені."
-    });
+    if(!r.ok){
+      return new Response("Media unavailable",{
+        status:r.status,
+        headers:base
+      });
+    }
+
+    const h=mediaHeaders();
+
+    h.set(
+      "cache-control",
+      "private, no-store"
+    );
+
+    const contentRange=r.headers.get("content-range");
+    const contentLength=r.headers.get("content-length");
+
+    if(contentRange){
+      h.set("content-range",contentRange);
+    }
+
+    if(contentLength){
+      h.set("content-length",contentLength);
+    }
+
+    return new Response(
+      req.method==="HEAD"?null:r.body,
+      {
+        status:r.status,
+        headers:h
+      }
+    );
 
   }catch(err){
-    console.error("Selective reset failed",err);
-
-    return J({
-      error:"Скидання не завершено",
-      detail:String(err?.message||err)
-    },500);
+    return new Response("Media unavailable",{
+      status:502,
+      headers:base
+    });
   }
 }
 
-async function api(req,e,u){if(req.method==="OPTIONS")return new Response(null,{status:204,headers:base});if(u.pathname==="/api/telegram/webhook"&&req.method==="POST")return telegramWebhook(req,e);await ensure(e.DB);if(u.pathname==="/api/google/start"&&req.method==="GET")return googleStart(req,e);if(u.pathname==="/api/google/callback"&&req.method==="GET")return googleCallback(req,e);if(u.pathname==="/api/media/status"&&req.method==="GET")return googleStatus(req,e);if(u.pathname==="/api/media/upload"&&req.method==="POST")return driveUpload(req,e);if(u.pathname==="/api/media/delete"&&req.method==="DELETE")return driveDelete(req,e);if(u.pathname.startsWith("/api/media/")&&(req.method==="GET"||req.method==="HEAD"))return mediaProxy(req,e,u.pathname.slice("/api/media/".length));if(u.pathname==="/api/auth/login"&&req.method==="POST")return login(req,e);if(u.pathname==="/api/auth/logout"&&req.method==="POST")return J({ok:true},200,{"set-cookie":"mehanik_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"});if(u.pathname==="/api/ai"&&req.method==="POST")return publicAI(req,e);if(u.pathname==="/api/services"&&req.method==="GET")return services(e);if(u.pathname==="/api/works"&&req.method==="GET")return works(e);if(u.pathname==="/api/reviews"&&req.method==="GET")return reviews(e);if(u.pathname==="/api/reviews"&&req.method==="POST")return createReview(req,e);if(u.pathname==="/api/bookings"&&req.method==="POST")return booking(req,e);if(u.pathname==="/api/admin/analytics"&&req.method==="GET"){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);return analytics(req,e)}if(u.pathname.startsWith("/api/admin/")){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);const r=a.role;if(u.pathname==="/api/admin/reset"&&req.method==="POST")return resetData(req,e,r);if(u.pathname==="/api/admin/telegram/setup"&&req.method==="GET"){await ensureTelegramBot(e);return J({ok:true,webhook:`${new URL(req.url).origin}/api/telegram/webhook`,commands:["/start","/completed"]})}if(u.pathname==="/api/admin/ai"&&req.method==="POST")return adminAI(req,e,r);if(u.pathname==="/api/admin/market"&&req.method==="GET")return marketAdmin(req,e);if(u.pathname==="/api/admin/market"&&req.method==="POST"){if(r!=="superadmin")return J({error:"Потрібні права superadmin"},403);return marketAdmin(req,e)}if(u.pathname==="/api/admin/bookings")return adminBookings(req,e,r);if(u.pathname==="/api/admin/completed-works")return completedWorks(req,e);if(u.pathname==="/api/admin/services")return adminServices(req,e,r);if(u.pathname==="/api/admin/mechanics")return adminMechanics(req,e);if(u.pathname==="/api/admin/reviews")return adminReviews(req,e);if(u.pathname==="/api/admin/works")return adminWorks(req,e);if(u.pathname==="/api/admin/history")return history(req,e);if(u.pathname==="/api/admin/blocks")return blocks(req,e);if(u.pathname==="/api/admin/logs"){const s=await auth(req,e,true);if(s.error)return J({error:s.error},s.status);return logs(req,e)}return J({error:"API route not found"},404)}return null}
+async function api(req,e,u){if(req.method==="OPTIONS")return new Response(null,{status:204,headers:base});if(u.pathname==="/api/telegram/webhook"&&req.method==="POST")return telegramWebhook(req,e);await ensure(e.DB);if(u.pathname==="/api/google/start"&&req.method==="GET")return googleStart(req,e);if(u.pathname==="/api/google/callback"&&req.method==="GET")return googleCallback(req,e);if(u.pathname==="/api/media/status"&&req.method==="GET")return googleStatus(req,e);if(u.pathname==="/api/media/upload"&&req.method==="POST")return driveUpload(req,e);if(u.pathname==="/api/media/delete"&&req.method==="DELETE")return driveDelete(req,e);if(u.pathname.startsWith("/api/media/")&&(req.method==="GET"||req.method==="HEAD"))return mediaProxy(req,e,u.pathname.slice("/api/media/".length));if(u.pathname==="/api/auth/login"&&req.method==="POST")return login(req,e);if(u.pathname==="/api/auth/logout"&&req.method==="POST")return J({ok:true},200,{"set-cookie":"mehanik_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"});if(u.pathname==="/api/ai"&&req.method==="POST")return publicAI(req,e);if(u.pathname==="/api/services"&&req.method==="GET")return services(e);if(u.pathname==="/api/works"&&req.method==="GET")return works(e);if(u.pathname==="/api/reviews"&&req.method==="GET")return reviews(e);if(u.pathname==="/api/reviews"&&req.method==="POST")return createReview(req,e);if(u.pathname==="/api/bookings"&&req.method==="POST")return booking(req,e);if(u.pathname==="/api/admin/analytics"&&req.method==="GET"){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);return analytics(req,e)}if(u.pathname.startsWith("/api/admin/")){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);const r=a.role;if(u.pathname==="/api/admin/telegram/setup"&&req.method==="GET"){await ensureTelegramBot(e);return J({ok:true,webhook:`${new URL(req.url).origin}/api/telegram/webhook`,commands:["/start","/completed"]})}if(u.pathname==="/api/admin/ai"&&req.method==="POST")return adminAI(req,e,r);if(u.pathname==="/api/admin/market"&&req.method==="GET")return marketAdmin(req,e);if(u.pathname==="/api/admin/market"&&req.method==="POST"){if(r!=="superadmin")return J({error:"Потрібні права superadmin"},403);return marketAdmin(req,e)}if(u.pathname==="/api/admin/bookings")return adminBookings(req,e,r);if(u.pathname==="/api/admin/completed-works")return completedWorks(req,e);if(u.pathname==="/api/admin/services")return adminServices(req,e,r);if(u.pathname==="/api/admin/mechanics")return adminMechanics(req,e);if(u.pathname==="/api/admin/reviews")return adminReviews(req,e);if(u.pathname==="/api/admin/works")return adminWorks(req,e);if(u.pathname==="/api/admin/history")return history(req,e);if(u.pathname==="/api/admin/blocks")return blocks(req,e);if(u.pathname==="/api/admin/reset")return adminReset(req,e,r);if(u.pathname==="/api/admin/logs"){const s=await auth(req,e,true);if(s.error)return J({error:s.error},s.status);return logs(req,e)}return J({error:"API route not found"},404)}return null}
 function secureAsset(resp){const h=new Headers(resp.headers);for(const[k,v] of Object.entries(base))if(!h.has(k)||k.startsWith("content-security-policy"))h.set(k,v);return new Response(resp.body,{status:resp.status,statusText:resp.statusText,headers:h})}
 async function autoFinishAllRunning(e){const{results}=await e.DB.prepare(`SELECT b.id,b.work_status,b.work_started_at,b.work_elapsed_seconds,COALESCE(s.duration_minutes,60) duration FROM bookings b LEFT JOIN service_catalog s ON s.name=b.service WHERE b.work_status='running'`).all();for(const x of results||[]){const total=Math.max(1,Number(x.duration||60)*60),elapsed=elapsedNow(x);if(elapsed>=total){const finishedAt=isoNow();await e.DB.prepare(`UPDATE bookings SET work_elapsed_seconds=?,work_started_at=NULL,work_finished_at=?,work_status='finished',status='completed' WHERE id=? AND work_status='running'`).bind(total,finishedAt,Number(x.id)).run();await saveCompletedWork(e.DB,e,Number(x.id),"scheduled_auto");}}}
 
