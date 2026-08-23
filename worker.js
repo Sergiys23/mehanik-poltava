@@ -421,68 +421,326 @@ async function driveDelete(req,e){
   return J({ok:true,message:"Файл видалено з Google Drive та R2"});
 }
 async function mediaProxy(req,e,id){
-  const row=await e.DB.prepare(`SELECT id,drive_id,name,mime_type,size_bytes FROM drive_media WHERE id=?`).bind(id).first();
-  if(!row)return new Response("Media not found",{status:404,headers:base});
+  const row=await e.DB.prepare(
+    `SELECT id,drive_id,name,mime_type,size_bytes
+     FROM drive_media WHERE id=?`
+  ).bind(id).first();
 
+  if(!row){
+    return new Response("Media not found",{
+      status:404,
+      headers:base
+    });
+  }
+
+  const dbSize=Number(row.size_bytes||0);
+  const mime=String(row.mime_type||"application/octet-stream");
+  const filename=encodeURIComponent(row.name||id);
+
+  const mediaHeaders=()=>{
+    const h=new Headers(base);
+    h.set("content-type",mime);
+    h.set("accept-ranges","bytes");
+    h.set(
+      "cache-control",
+      "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
+    );
+    h.set(
+      "content-disposition",
+      `inline; filename*=UTF-8''${filename}`
+    );
+    h.set("x-content-type-options","nosniff");
+    return h;
+  };
+
+  // =========================================================
+  // CLOUDFLARE R2
+  // =========================================================
   if(e.MEDIA){
-    const range=req.headers.get("range");
     try{
-      if(range){
-        const m=range.match(/^bytes=(\d+)-(\d*)$/);
-        if(!m)return new Response("Invalid Range",{status:416,headers:{...base,"content-range":`bytes */${row.size_bytes||"*"}`}});
-        const start=Number(m[1]);
-        const end=m[2]?Number(m[2]):Math.max(start,Number(row.size_bytes||0)-1);
-        if(!Number.isFinite(start)||!Number.isFinite(end)||end<start||start>=Number(row.size_bytes||0)){
-          return new Response("Range Not Satisfiable",{status:416,headers:{...base,"content-range":`bytes */${row.size_bytes||"*"}`}});
+      const rangeHeader=req.headers.get("range");
+
+      // HEAD: браузеру достатньо метаданих, тіло не віддаємо.
+      if(req.method==="HEAD" && !rangeHeader){
+        const h=mediaHeaders();
+
+        if(dbSize>0){
+          h.set("content-length",String(dbSize));
         }
-        const obj=await e.MEDIA.get(`media/${id}`,{range:{offset:start,length:end-start+1}});
-        if(obj){
-          const h=new Headers(base);
-          h.set("content-type",row.mime_type||"application/octet-stream");
-          h.set("accept-ranges","bytes");
-          h.set("cache-control","public, max-age=86400, s-maxage=86400");
-          h.set("content-length",String(obj.size));
-          h.set("content-range",`bytes ${start}-${start+obj.size-1}/${row.size_bytes}`);
-          h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||id)}`);
-          return new Response(req.method==="HEAD"?null:obj.body,{status:206,headers:h});
-        }
-      }else{
-        const obj=await e.MEDIA.get(`media/${id}`);
-        if(obj){
-          const h=new Headers(base);
-          h.set("content-type",row.mime_type||obj.httpMetadata?.contentType||"application/octet-stream");
-          h.set("accept-ranges","bytes");
-          h.set("cache-control","public, max-age=86400, s-maxage=86400");
-          h.set("content-length",String(obj.size));
-          h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||id)}`);
-          return new Response(req.method==="HEAD"?null:obj.body,{status:200,headers:h});
-        }
+
+        return new Response(null,{
+          status:200,
+          headers:h
+        });
       }
+
+      if(rangeHeader){
+        /*
+         * Підтримуємо:
+         *   bytes=0-999
+         *   bytes=0-
+         *   bytes=-500000
+         *
+         * Android Chrome активно використовує Range.
+         */
+        const m=rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+
+        if(!m){
+          return new Response("Invalid Range",{
+            status:416,
+            headers:{
+              ...base,
+              "content-range":`bytes */${dbSize||"*"}`
+            }
+          });
+        }
+
+        let start;
+        let end;
+        let length;
+
+        if(m[1]===""){
+          // Suffix range: bytes=-N
+          const suffix=Number(m[2]);
+
+          if(
+            !Number.isFinite(suffix) ||
+            suffix<=0 ||
+            dbSize<=0
+          ){
+            return new Response("Range Not Satisfiable",{
+              status:416,
+              headers:{
+                ...base,
+                "content-range":`bytes */${dbSize||"*"}`
+              }
+            });
+          }
+
+          length=Math.min(suffix,dbSize);
+          start=dbSize-length;
+          end=dbSize-1;
+
+        }else{
+          start=Number(m[1]);
+
+          if(!Number.isFinite(start)||start<0){
+            return new Response("Range Not Satisfiable",{
+              status:416,
+              headers:{
+                ...base,
+                "content-range":`bytes */${dbSize||"*"}`
+              }
+            });
+          }
+
+          if(m[2]===""){
+            // bytes=N-
+            if(dbSize<=0 || start>=dbSize){
+              return new Response("Range Not Satisfiable",{
+                status:416,
+                headers:{
+                  ...base,
+                  "content-range":`bytes */${dbSize||"*"}`
+                }
+              });
+            }
+
+            end=dbSize-1;
+          }else{
+            end=Number(m[2]);
+
+            if(
+              !Number.isFinite(end) ||
+              dbSize<=0 ||
+              start>=dbSize ||
+              end<start
+            ){
+              return new Response("Range Not Satisfiable",{
+                status:416,
+                headers:{
+                  ...base,
+                  "content-range":`bytes */${dbSize||"*"}`
+                }
+              });
+            }
+
+            end=Math.min(end,dbSize-1);
+          }
+
+          length=end-start+1;
+        }
+
+        const obj=await e.MEDIA.get(
+          `media/${id}`,
+          {
+            range:{
+              offset:start,
+              length:length
+            }
+          }
+        );
+
+        if(!obj||!obj.body){
+          return new Response("Media not found",{
+            status:404,
+            headers:base
+          });
+        }
+
+        /*
+         * ВАЖЛИВО:
+         *
+         * obj.size = повний розмір R2-об'єкта.
+         * Для 206 Content-Length має бути розмір
+         * саме отриманого Range, а не всього MP4.
+         */
+        const actualStart=Number(
+          obj.range?.offset ?? start
+        );
+
+        const actualLength=Number(
+          obj.range?.length ?? length
+        );
+
+        const actualTotal=dbSize>0
+          ?dbSize
+          :Number(obj.size||0);
+
+        const actualEnd=actualStart+actualLength-1;
+
+        const h=mediaHeaders();
+
+        h.set(
+          "content-length",
+          String(actualLength)
+        );
+
+        h.set(
+          "content-range",
+          `bytes ${actualStart}-${actualEnd}/${actualTotal}`
+        );
+
+        if(obj.httpEtag){
+          h.set("etag",obj.httpEtag);
+        }
+
+        return new Response(
+          req.method==="HEAD"?null:obj.body,
+          {
+            status:206,
+            headers:h
+          }
+        );
+      }
+
+      // Звичайний GET без Range.
+      const obj=await e.MEDIA.get(`media/${id}`);
+
+      if(obj&&obj.body){
+        const h=mediaHeaders();
+
+        h.set(
+          "content-length",
+          String(obj.size||dbSize)
+        );
+
+        if(obj.httpEtag){
+          h.set("etag",obj.httpEtag);
+        }
+
+        return new Response(
+          req.method==="HEAD"?null:obj.body,
+          {
+            status:200,
+            headers:h
+          }
+        );
+      }
+
     }catch(err){
-      console.log("R2 media read failed",String(err?.message||err));
+      console.log(
+        "R2 media read failed",
+        String(err?.message||err)
+      );
     }
   }
 
-  // Backward-compatible fallback for old records or a temporarily unavailable R2 object.
-  const driveId=String(row.drive_id||id);
+  // =========================================================
+  // GOOGLE DRIVE FALLBACK
+  // =========================================================
+
+  const driveId=String(row.drive_id||"");
+
+  if(!driveId){
+    return new Response("Media unavailable",{
+      status:502,
+      headers:base
+    });
+  }
+
   try{
     const token=await googleAccessToken(e);
-    const headers={Authorization:`Bearer ${token}`};
-    const range=req.headers.get("range"); if(range)headers.Range=range;
-    const r=await fetch(`${GOOGLE_DRIVE_API}/files/${encodeURIComponent(driveId)}?alt=media`,{method:"GET",headers});
-    if(!r.ok)return new Response("Media unavailable",{status:r.status,headers:base});
-    const h=new Headers(base);
-    h.set("content-type",r.headers.get("content-type")||row.mime_type||"application/octet-stream");
-    h.set("cache-control","private, no-store");
-    h.set("accept-ranges","bytes");
-    if(r.headers.get("content-range"))h.set("content-range",r.headers.get("content-range"));
-    if(r.headers.get("content-length"))h.set("content-length",r.headers.get("content-length"));
-    h.set("content-disposition",`inline; filename*=UTF-8''${encodeURIComponent(row.name||id)}`);
-    return new Response(req.method==="HEAD"?null:r.body,{status:r.status,headers:h});
+
+    const headers={
+      Authorization:`Bearer ${token}`
+    };
+
+    const range=req.headers.get("range");
+
+    if(range){
+      headers.Range=range;
+    }
+
+    const r=await fetch(
+      `${GOOGLE_DRIVE_API}/files/${encodeURIComponent(driveId)}?alt=media`,
+      {
+        method:"GET",
+        headers
+      }
+    );
+
+    if(!r.ok){
+      return new Response("Media unavailable",{
+        status:r.status,
+        headers:base
+      });
+    }
+
+    const h=mediaHeaders();
+
+    h.set(
+      "cache-control",
+      "private, no-store"
+    );
+
+    const contentRange=r.headers.get("content-range");
+    const contentLength=r.headers.get("content-length");
+
+    if(contentRange){
+      h.set("content-range",contentRange);
+    }
+
+    if(contentLength){
+      h.set("content-length",contentLength);
+    }
+
+    return new Response(
+      req.method==="HEAD"?null:r.body,
+      {
+        status:r.status,
+        headers:h
+      }
+    );
+
   }catch(err){
-    return new Response("Media unavailable",{status:502,headers:base});
+    return new Response("Media unavailable",{
+      status:502,
+      headers:base
+    });
   }
 }
+
 async function api(req,e,u){if(req.method==="OPTIONS")return new Response(null,{status:204,headers:base});if(u.pathname==="/api/telegram/webhook"&&req.method==="POST")return telegramWebhook(req,e);await ensure(e.DB);if(u.pathname==="/api/google/start"&&req.method==="GET")return googleStart(req,e);if(u.pathname==="/api/google/callback"&&req.method==="GET")return googleCallback(req,e);if(u.pathname==="/api/media/status"&&req.method==="GET")return googleStatus(req,e);if(u.pathname==="/api/media/upload"&&req.method==="POST")return driveUpload(req,e);if(u.pathname==="/api/media/delete"&&req.method==="DELETE")return driveDelete(req,e);if(u.pathname.startsWith("/api/media/")&&(req.method==="GET"||req.method==="HEAD"))return mediaProxy(req,e,u.pathname.slice("/api/media/".length));if(u.pathname==="/api/auth/login"&&req.method==="POST")return login(req,e);if(u.pathname==="/api/auth/logout"&&req.method==="POST")return J({ok:true},200,{"set-cookie":"mehanik_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"});if(u.pathname==="/api/ai"&&req.method==="POST")return publicAI(req,e);if(u.pathname==="/api/services"&&req.method==="GET")return services(e);if(u.pathname==="/api/works"&&req.method==="GET")return works(e);if(u.pathname==="/api/reviews"&&req.method==="GET")return reviews(e);if(u.pathname==="/api/reviews"&&req.method==="POST")return createReview(req,e);if(u.pathname==="/api/bookings"&&req.method==="POST")return booking(req,e);if(u.pathname==="/api/admin/analytics"&&req.method==="GET"){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);return analytics(req,e)}if(u.pathname.startsWith("/api/admin/")){const a=await auth(req,e);if(a.error)return J({error:a.error},a.status);const r=a.role;if(u.pathname==="/api/admin/telegram/setup"&&req.method==="GET"){await ensureTelegramBot(e);return J({ok:true,webhook:`${new URL(req.url).origin}/api/telegram/webhook`,commands:["/start","/completed"]})}if(u.pathname==="/api/admin/ai"&&req.method==="POST")return adminAI(req,e,r);if(u.pathname==="/api/admin/market"&&req.method==="GET")return marketAdmin(req,e);if(u.pathname==="/api/admin/market"&&req.method==="POST"){if(r!=="superadmin")return J({error:"Потрібні права superadmin"},403);return marketAdmin(req,e)}if(u.pathname==="/api/admin/bookings")return adminBookings(req,e,r);if(u.pathname==="/api/admin/completed-works")return completedWorks(req,e);if(u.pathname==="/api/admin/services")return adminServices(req,e,r);if(u.pathname==="/api/admin/mechanics")return adminMechanics(req,e);if(u.pathname==="/api/admin/reviews")return adminReviews(req,e);if(u.pathname==="/api/admin/works")return adminWorks(req,e);if(u.pathname==="/api/admin/history")return history(req,e);if(u.pathname==="/api/admin/blocks")return blocks(req,e);if(u.pathname==="/api/admin/logs"){const s=await auth(req,e,true);if(s.error)return J({error:s.error},s.status);return logs(req,e)}return J({error:"API route not found"},404)}return null}
 function secureAsset(resp){const h=new Headers(resp.headers);for(const[k,v] of Object.entries(base))if(!h.has(k)||k.startsWith("content-security-policy"))h.set(k,v);return new Response(resp.body,{status:resp.status,statusText:resp.statusText,headers:h})}
 async function autoFinishAllRunning(e){const{results}=await e.DB.prepare(`SELECT b.id,b.work_status,b.work_started_at,b.work_elapsed_seconds,COALESCE(s.duration_minutes,60) duration FROM bookings b LEFT JOIN service_catalog s ON s.name=b.service WHERE b.work_status='running'`).all();for(const x of results||[]){const total=Math.max(1,Number(x.duration||60)*60),elapsed=elapsedNow(x);if(elapsed>=total){const finishedAt=isoNow();await e.DB.prepare(`UPDATE bookings SET work_elapsed_seconds=?,work_started_at=NULL,work_finished_at=?,work_status='finished',status='completed' WHERE id=? AND work_status='running'`).bind(total,finishedAt,Number(x.id)).run();await saveCompletedWork(e.DB,e,Number(x.id),"scheduled_auto");}}}
