@@ -1,0 +1,2 @@
+/* Hidden tabs are not a security boundary. API authorization remains mandatory. */
+.admin-tabs [data-tab][hidden]{display:none!important}
