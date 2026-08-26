@@ -94,6 +94,7 @@ function ip(req) {
 
 async function rateLimit(env, key, max, windowSeconds) {
   if (!env.DB) return { allowed: true };
+  try {
 
   await env.DB.prepare(RATE_TABLE).run();
 
@@ -122,6 +123,10 @@ async function rateLimit(env, key, max, windowSeconds) {
   ).bind(key).run();
 
   return { allowed: true, remaining: Math.max(0, max - count - 1) };
+  } catch (err) {
+    console.error("security rate-limit unavailable:", err);
+    return { allowed: true };
+  }
 }
 
 async function cleanupRateLimits(env) {
@@ -201,7 +206,7 @@ async function handle(request, env, ctx) {
   const url = new URL(request.url);
   const pathname = url.pathname;
 
-  await cleanupRateLimits(env);
+  try { await cleanupRateLimits(env); } catch (err) { console.error("rate-limit cleanup:", err); }
 
   const limited = await publicRateLimit(request, env, pathname);
   if (!limited.allowed) {
