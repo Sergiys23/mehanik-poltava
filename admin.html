@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="same-origin">
+<title>Механік — Адмін</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/fix.css">
+<link rel="stylesheet" href="/video-fix.css">
+<link rel="stylesheet" href="/admin-role.css">
+</head>
+<body>
+<main class="admin-wrap admin-page">
+<div id="adminHeader" class="hidden" aria-hidden="true"></div>
+<section id="login" class="admin-login-screen">
+<div class="admin-login-card">
+<p class="eyebrow">МЕХАНІК • ПОЛТАВА</p>
+<h1>Вхід до кабінету</h1>
+<p class="login-subtitle">Адміністратор або superadmin</p>
+<input id="loginUser" placeholder="Логін" autocomplete="username">
+<input id="loginPass" type="password" placeholder="Пароль" autocomplete="current-password">
+<button id="loginBtn" class="btn primary full">Увійти</button>
+<p id="loginMsg"></p>
+</div>
+</section>
+<section id="panel" class="hidden">
+<div class="admin-top">
+<div><p class="eyebrow">ПАНЕЛЬ КЕРУВАННЯ</p><h1>Механік Полтава</h1><div>Роль: <b id="role"></b></div></div>
+<div class="admin-top-actions"><button id="refresh" class="btn secondary">🔄 Оновити</button><button id="logout" class="btn secondary">Вийти</button></div>
+</div>
+<nav class="admin-tabs">
+<button class="btn active" data-tab="bookings">📅 Заявки</button>
+<button class="btn" data-tab="history">🗂 Архів</button>
+<button class="btn" data-tab="completed">🏁 Виконані роботи</button>
+<button class="btn" data-tab="reviews">⭐ Відгуки</button>
+<button class="btn" data-tab="works">🔧 Роботи</button>
+<button class="btn" data-tab="services">💰 Послуги / ціни</button>
+<button class="btn" data-tab="mechanics">👨‍🔧 Механіки</button>
+<button class="btn" data-tab="blocks">⛔ Блокування</button>
+<button class="btn" data-tab="analytics">📊 Аналітика</button>
+<button class="btn" data-tab="market">💵 Ринок / USD</button>
+<button class="btn" data-tab="ai">🤖 AI-помічник</button>
+<button class="btn" data-tab="logs">📋 Журнал</button>
+</nav>
+<div id="msg"></div><div id="content"></div>
+</section>
+</main>
+<script src="/admin.js?v=20260826-role"></script>
+<script src="/admin-role.js?v=20260826-1"></script>
+<script src="/admin-fix.js?v=20260822-1"></script>
+<script src="/media-player.js?v=20260822-2"></script>
+<script src="/video-fix.js?v=20260822-2"></script>
+<script>
+  // Apply role after admin.js login. We deliberately do not rely on this for security.
+  const _origLogin = window.login;
+  if (typeof _origLogin === 'function') {
+    window.login = async function(){
+      await _origLogin();
+      if (window.MehanikRoleUI) MehanikRoleUI.apply(window.role || '');
+    };
+  }
+  document.addEventListener('click', e=>{
+    const b=e.target.closest('.admin-tabs [data-tab]');
+    if(!b) return;
+    if(window.MehanikRoleUI && !MehanikRoleUI.allowed(window.role||'',b.dataset.tab)){
+      e.preventDefault(); e.stopImmediatePropagation();
+    }
+  }, true);
+</script>
+</body>
+</html>
