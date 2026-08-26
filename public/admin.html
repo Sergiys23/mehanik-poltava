@@ -54,13 +54,7 @@
 <script src="/video-fix.js?v=20260822-2"></script>
 <script>
   // Apply role after admin.js login. We deliberately do not rely on this for security.
-  const _origLogin = window.login;
-  if (typeof _origLogin === 'function') {
-    window.login = async function(){
-      await _origLogin();
-      if (window.MehanikRoleUI) MehanikRoleUI.apply(window.role || '');
-    };
-  }
+
   document.addEventListener('click', e=>{
     const b=e.target.closest('.admin-tabs [data-tab]');
     if(!b) return;
