@@ -1,5 +1,5 @@
 name = "mehanik"
-main = "worker.js"
+main = "security-worker.js"
 compatibility_date = "2026-08-17"
 
 [vars]
