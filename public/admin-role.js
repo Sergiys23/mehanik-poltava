@@ -12,7 +12,6 @@
         btn.setAttribute('aria-hidden', ok ? 'false' : 'true');
       });
       if(!allowed.has(window.tab)) window.tab = 'bookings';
-      window.mehanikRole = role; window.role = role;
     },
     allowed(role,tab){ return role === 'superadmin' ? ALL.has(tab) : ADMIN_TABS.has(tab); }
   };
