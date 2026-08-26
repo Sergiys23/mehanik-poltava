@@ -1,0 +1,78 @@
+MEHANIK FINAL HARDENING PATCH
+============================
+
+1) VIDEO LIMIT
+--------------
+Replace the existing media upload size limit (currently ~90 MiB) with:
+
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+
+Do NOT use the video limit for images.
+
+2) R2-FIRST UPLOAD
+------------------
+The upload endpoint must write the object to R2 first. Google Drive must be a
+secondary backup. A Google Drive failure MUST NOT delete/fail a successful R2
+upload.
+
+Recommended flow:
+  authenticate -> validate role -> validate MIME/size -> R2.put -> D1 row ->
+  best-effort Google Drive backup -> return R2 media URL/id.
+
+If Google Drive fails, return:
+  { ok:true, id, r2:true, drive:false, warning:"Google Drive backup failed" }
+
+3) ROLE RULES (SERVER SIDE)
+---------------------------
+ADMIN may use:
+  /api/admin/bookings
+  /api/admin/history (GET only)
+  /api/admin/completed-works
+  /api/admin/reviews (GET; moderation policy can be retained)
+  /api/admin/works (GET; upload media allowed)
+  /api/admin/mechanics
+  /api/admin/blocks
+  /api/media/status (GET)
+  /api/media/upload (POST)
+
+SUPERADMIN only:
+  /api/admin/services mutations
+  /api/admin/market mutations
+  /api/admin/logs
+  /api/admin/analytics (if desired as sensitive)
+  /api/admin/reset
+  /api/media/delete
+  Google Drive connect/disconnect operations
+
+Important: UI hiding is NOT a security control. Every protected endpoint must
+call auth(req,e) and enforce the role on the server.
+
+4) PUBLIC ADMIN ENTRY
+---------------------
+Remove all public links to /admin.html from index.html/footer/header.
+Keep /admin.html itself protected by login. Do not expose credentials in HTML.
+
+5) INSTAGRAM
+------------
+NO Instagram AI, NO Instagram API automation, NO automatic Instagram import.
+Existing Instagram profile links may remain as normal external links.
+
+6) VIDEO CLIENT
+---------------
+Accept: video/mp4, video/webm, video/quicktime.
+Use the existing R2 Range/206 proxy for playback.
+Show server error JSON in the admin UI instead of generic "Failed to fetch".
+
+7) SECURITY
+-----------
+Keep HttpOnly + Secure + SameSite=Strict session cookie.
+Keep CSP/security headers.
+Use Cloudflare/WAF rate limits for /api/auth/login, /api/bookings,
+/api/reviews, /api/ai and media upload.
+
+8) IMPORTANT
+------------
+Do not replace the existing worker wholesale with a wrapper. Apply these changes
+inside the current worker.js so all existing D1/R2/Telegram/Google functionality
+remains intact.
